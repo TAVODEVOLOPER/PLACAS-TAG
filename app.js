@@ -8,6 +8,9 @@
 const STORAGE_KEY_URL = 'placas_api_url';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const PAGE_SIZE = 60;
+const APP_VERSION = 'v1.1.0';
+
+document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
 let state = {
   apiUrl: localStorage.getItem(STORAGE_KEY_URL) || '',
@@ -112,18 +115,23 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 function renderDashboard() {
   const rows = state.rows;
   const total = rows.length;
-  let clasificadas = 0, gqe = 0;
-  const porDW = {}, porBW = {}, porDisc = {};
+  let clasificadas = 0;
+  const porDW = {}, porBW = {};
+  const discTotals = {}, discClasificadas = {};
+  const packagesEnUso = new Set();
 
   rows.forEach(row => {
     const hasDW = row.dw !== '' && row.dw !== null && row.dw !== undefined;
     const hasBW = row.bw !== '' && row.bw !== null && row.bw !== undefined;
-    if (hasDW || hasBW) clasificadas++;
-    if (String(row.g).toUpperCase() === 'Y') gqe++;
-    if (hasDW) porDW[row.dw] = (porDW[row.dw] || 0) + 1;
-    if (hasBW) porBW[row.bw] = (porBW[row.bw] || 0) + 1;
+    const clasificada = hasDW || hasBW;
+    if (clasificada) clasificadas++;
+
+    if (hasDW) { porDW[row.dw] = (porDW[row.dw] || 0) + 1; packagesEnUso.add('DW-' + row.dw); }
+    if (hasBW) { porBW[row.bw] = (porBW[row.bw] || 0) + 1; packagesEnUso.add('BW-' + row.bw); }
+
     const d = row.dis || '(sin disciplina)';
-    porDisc[d] = (porDisc[d] || 0) + 1;
+    discTotals[d] = (discTotals[d] || 0) + 1;
+    if (clasificada) discClasificadas[d] = (discClasificadas[d] || 0) + 1;
   });
 
   const pendientes = total - clasificadas;
@@ -132,31 +140,129 @@ function renderDashboard() {
   document.getElementById('kpiTotal').textContent = total.toLocaleString('es-ES');
   document.getElementById('kpiClasificadas').textContent = clasificadas.toLocaleString('es-ES');
   document.getElementById('kpiPendientes').textContent = pendientes.toLocaleString('es-ES');
-  document.getElementById('kpiGQE').textContent = gqe.toLocaleString('es-ES');
+  document.getElementById('kpiPaquetes').textContent = packagesEnUso.size.toLocaleString('es-ES');
   document.getElementById('progressPct').textContent = pct + '%';
   document.getElementById('progressFill').style.width = pct + '%';
 
-  renderBarChart('chartDW', porDW, 'PQT ');
-  renderBarChart('chartBW', porBW, 'PQT ');
-  renderBarChart('chartDisciplina', porDisc, '');
+  renderChipGrid('chartDW', porDW, 'dw');
+  renderChipGrid('chartBW', porBW, 'bw');
+  renderHeatList('chartDisciplina', discTotals, discClasificadas);
 }
 
-function renderBarChart(elId, dict, prefix) {
+// Colores estables por paquete: mismo número siempre el mismo tono
+const CHIP_PALETTE = [
+  { bg: '#e8effe', fg: '#2563eb' }, // azul
+  { bg: '#e3f6f3', fg: '#0d9488' }, // teal
+  { bg: '#fff3e0', fg: '#c2670a' }, // ámbar
+  { bg: '#f0e9fd', fg: '#7c3aed' }, // púrpura
+  { bg: '#fdecec', fg: '#c22b2b' }, // rojo
+  { bg: '#e6f4ea', fg: '#1a7a3c' }  // verde
+];
+
+function chipColorFor(key) {
+  let hash = 0;
+  const s = String(key);
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  return CHIP_PALETTE[hash % CHIP_PALETTE.length];
+}
+
+function renderChipGrid(elId, dict, field) {
   const el = document.getElementById(elId);
-  const entries = Object.entries(dict).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(dict).sort((a, b) => Number(a[0]) - Number(b[0]) || a[0].localeCompare(b[0]));
   if (entries.length === 0) {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">Sin datos todavía.</p>';
     return;
   }
-  const max = entries[0][1];
-  el.innerHTML = entries.map(([key, count]) => `
-    <div class="bar-row">
-      <span class="bar-label" title="${escapeHtml(String(key))}">${prefix}${escapeHtml(String(key))}</span>
-      <span class="bar-track"><span class="bar-fill" style="width:${(count / max) * 100}%"></span></span>
-      <span class="bar-count">${count}</span>
-    </div>
-  `).join('');
+  el.innerHTML = entries.map(([key, count]) => {
+    const c = chipColorFor(key);
+    return `
+      <div class="chip" data-field="${field}" data-key="${escapeHtml(key)}" style="background:${c.bg};border-color:${c.bg}">
+        <span class="chip-num" style="color:${c.fg}">${escapeHtml(key)}</span>
+        <span class="chip-count">${count} tag${count === 1 ? '' : 's'}</span>
+      </div>
+    `;
+  }).join('');
+
+  el.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => openPackageModal(chip.dataset.field, chip.dataset.key));
+  });
 }
+
+// Escala de calor: rojo (bajo avance) → ámbar → teal (alto avance)
+function heatColor(pct) {
+  if (pct >= 100) return '#0d9488';
+  if (pct >= 66) return '#2fa88f';
+  if (pct >= 33) return '#d97706';
+  if (pct > 0) return '#e0854a';
+  return '#dc2626';
+}
+
+function renderHeatList(elId, totals, done) {
+  const el = document.getElementById(elId);
+  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">Sin datos todavía.</p>';
+    return;
+  }
+  el.innerHTML = entries.map(([disc, total]) => {
+    const doneCount = done[disc] || 0;
+    const pct = total ? Math.round((doneCount / total) * 100) : 0;
+    const color = heatColor(pct);
+    return `
+      <div class="heat-row">
+        <span class="heat-label" title="${escapeHtml(disc)}">${escapeHtml(disc)}</span>
+        <span class="heat-track"><span class="heat-fill" style="width:${pct}%;background:${color}"></span></span>
+        <span class="heat-meta">${doneCount}/${total} · ${pct}%</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ---------------- Package detail modal ----------------
+
+function openPackageModal(field, key) {
+  const rows = state.rows.filter(r => String(r[field]) === String(key));
+  const label = field === 'dw' ? 'PQT DW' : 'PQT BW';
+
+  document.getElementById('modalTitle').textContent = `${label} ${key}`;
+  document.getElementById('modalSubtitle').textContent = `${rows.length} tag${rows.length === 1 ? '' : 's'} en este paquete`;
+
+  const renderRows = (list) => {
+    document.getElementById('modalTableBody').innerHTML = list.map(row => `
+      <tr>
+        <td>${escapeHtml(row.i)}</td>
+        <td class="tag-cell" title="${escapeHtml(row.tag)}">${escapeHtml(row.tag)}</td>
+        <td>${escapeHtml(row.dis)}</td>
+        <td>${escapeHtml(row.sub)}</td>
+        <td>${escapeHtml(row.sys)}</td>
+        <td class="desc-cell" title="${escapeHtml(row.desc)}">${escapeHtml(row.desc)}</td>
+        <td>${escapeHtml(row.lvl)}</td>
+        <td>${escapeHtml(row.o)}</td>
+      </tr>
+    `).join('');
+  };
+
+  renderRows(rows);
+
+  const searchBox = document.getElementById('modalSearch');
+  searchBox.value = '';
+  searchBox.oninput = () => {
+    const q = searchBox.value.trim().toLowerCase();
+    const filtered = q
+      ? rows.filter(r => `${r.tag || ''} ${r.sys || ''} ${r.desc || ''}`.toLowerCase().includes(q))
+      : rows;
+    renderRows(filtered);
+  };
+
+  document.getElementById('packageModal').classList.remove('hidden');
+}
+
+document.getElementById('modalCloseBtn').addEventListener('click', () => {
+  document.getElementById('packageModal').classList.add('hidden');
+});
+document.getElementById('packageModal').addEventListener('click', (e) => {
+  if (e.target.id === 'packageModal') e.currentTarget.classList.add('hidden');
+});
 
 // ---------------- Filters ----------------
 

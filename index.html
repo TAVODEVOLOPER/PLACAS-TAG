@@ -22,6 +22,10 @@
     <button id="saveSetupBtn" class="btn-primary">Conectar</button>
     <p id="setupError" class="setup-error hidden"></p>
   </div>
+  <footer class="app-footer">
+    <span>By Gustavo developer</span>
+    <span class="footer-version" id="footerVersionSetup"></span>
+  </footer>
 </div>
 
 <div id="app" class="app hidden">
@@ -58,8 +62,8 @@
           <span class="kpi-label">Pendientes de clasificar</span>
         </div>
         <div class="kpi-card kpi-created">
-          <span class="kpi-value" id="kpiGQE">—</span>
-          <span class="kpi-label">TAGs creados (GQE)</span>
+          <span class="kpi-value" id="kpiPaquetes">—</span>
+          <span class="kpi-label">Paquetes activos (DW + BW)</span>
         </div>
       </div>
 
@@ -74,17 +78,20 @@
       <div class="panels-row">
         <div class="panel">
           <h2>Por paquete PQT DW</h2>
-          <div id="chartDW" class="bar-chart"></div>
+          <p class="panel-hint">Clic en un paquete para ver todos sus TAGs.</p>
+          <div id="chartDW" class="chip-grid"></div>
         </div>
         <div class="panel">
           <h2>Por paquete PQT BW</h2>
-          <div id="chartBW" class="bar-chart"></div>
+          <p class="panel-hint">Clic en un paquete para ver todos sus TAGs.</p>
+          <div id="chartBW" class="chip-grid"></div>
         </div>
       </div>
 
       <div class="panel">
-        <h2>Por disciplina</h2>
-        <div id="chartDisciplina" class="bar-chart bar-chart-wide"></div>
+        <h2>Avance por disciplina</h2>
+        <p class="panel-hint">% de TAGs ya asignados a un paquete (PQT DW o BW) dentro de cada disciplina. El color indica qué tan avanzada está.</p>
+        <div id="chartDisciplina" class="heat-list"></div>
       </div>
     </section>
 
@@ -139,6 +146,41 @@
   </main>
 
   <div id="toast" class="toast hidden"></div>
+
+  <footer class="app-footer">
+    <span>By Gustavo developer</span>
+    <span class="footer-version" id="footerVersionApp"></span>
+  </footer>
+
+  <div id="packageModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h3 id="modalTitle">Paquete</h3>
+          <p id="modalSubtitle" class="modal-subtitle"></p>
+        </div>
+        <button id="modalCloseBtn" class="btn-icon" title="Cerrar">✕</button>
+      </div>
+      <input id="modalSearch" type="text" class="search-input" placeholder="Buscar dentro de este paquete…">
+      <div class="table-wrap modal-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ITEM</th>
+              <th>TAG</th>
+              <th>DISCIPLINA</th>
+              <th>SUBCONTRATISTA</th>
+              <th>SISTEMA</th>
+              <th>DESCRIPCIÓN</th>
+              <th>LEVEL</th>
+              <th>OBS</th>
+            </tr>
+          </thead>
+          <tbody id="modalTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>

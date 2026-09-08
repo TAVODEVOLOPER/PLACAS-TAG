@@ -106,3 +106,6 @@ Para futuras versiones, simplemente vuelve a hacer `git add . && git commit
   la implementación de Apps Script no esté publicada como "Cualquier
   usuario con el enlace", o que hayas editado `Code.gs` sin crear una nueva
   implementación.
+- El pie de página ("By Gustavo developer" + versión) sale de la constante
+  `APP_VERSION` al principio de `app.js`. Súbela (por ejemplo a `v1.2.0`)
+  cada vez que subas una versión nueva a GitHub, para llevar la cuenta.
