@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLACAS · Control de paquetes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="setupScreen" class="setup-screen hidden">
+  <div class="setup-card">
+    <div class="setup-mark">PLACAS</div>
+    <h1>Conectar con tu hoja de cálculo</h1>
+    <p>Pega la URL de tu Apps Script (Web App) para leer y guardar los datos en tu Google Sheet. Se guarda solo en este navegador.</p>
+    <label for="apiUrlInput">URL de la Web App</label>
+    <input id="apiUrlInput" type="url" placeholder="https://script.google.com/macros/s/XXXX/exec" autocomplete="off">
+    <label for="userNameInput">Tu nombre (para registrar quién edita)</label>
+    <input id="userNameInput" type="text" placeholder="Ej. J. Pérez" autocomplete="off">
+    <button id="saveSetupBtn" class="btn-primary">Conectar</button>
+    <p id="setupError" class="setup-error hidden"></p>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="logo-mark">PLACAS</span>
+      <span class="logo-sub">Control de paquetes</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Resumen</button>
+      <button class="tab-btn" data-tab="tabla">Tabla</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="syncStatus" class="sync-status">—</span>
+      <button id="refreshBtn" class="btn-icon" title="Actualizar datos">⟳</button>
+      <button id="settingsBtn" class="btn-icon" title="Ajustes">⚙</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <span class="kpi-value" id="kpiTotal">—</span>
+          <span class="kpi-label">Placas totales</span>
+        </div>
+        <div class="kpi-card kpi-ok">
+          <span class="kpi-value" id="kpiClasificadas">—</span>
+          <span class="kpi-label">Clasificadas en un paquete</span>
+        </div>
+        <div class="kpi-card kpi-pending">
+          <span class="kpi-value" id="kpiPendientes">—</span>
+          <span class="kpi-label">Pendientes de clasificar</span>
+        </div>
+        <div class="kpi-card kpi-created">
+          <span class="kpi-value" id="kpiGQE">—</span>
+          <span class="kpi-label">TAGs creados (GQE)</span>
+        </div>
+      </div>
+
+      <div class="progress-block">
+        <div class="progress-header">
+          <span>Avance de clasificación</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+      </div>
+
+      <div class="panels-row">
+        <div class="panel">
+          <h2>Por paquete PQT DW</h2>
+          <div id="chartDW" class="bar-chart"></div>
+        </div>
+        <div class="panel">
+          <h2>Por paquete PQT BW</h2>
+          <div id="chartBW" class="bar-chart"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Por disciplina</h2>
+        <div id="chartDisciplina" class="bar-chart bar-chart-wide"></div>
+      </div>
+    </section>
+
+    <section id="tab-tabla" class="tab-panel">
+      <div class="filter-bar">
+        <input id="searchInput" type="text" placeholder="Buscar por TAG, sistema o descripción…" class="search-input">
+        <select id="filterDiscipline"><option value="">Disciplina (todas)</option></select>
+        <select id="filterSubcontractor"><option value="">Subcontratista (todos)</option></select>
+        <select id="filterEstado">
+          <option value="">Estado (todos)</option>
+          <option value="clasificada">Clasificada</option>
+          <option value="pendiente">Pendiente</option>
+        </select>
+        <select id="filterGQE">
+          <option value="">GQE (todos)</option>
+          <option value="Y">Creados (Y)</option>
+          <option value="">Sin marcar</option>
+        </select>
+        <button id="exportBtn" class="btn-secondary">Exportar CSV (filtro actual)</button>
+      </div>
+      <div class="results-count"><span id="resultsCount">0</span> resultados</div>
+
+      <div class="table-wrap">
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>ITEM</th>
+              <th>INSTALL</th>
+              <th>DISCIPLINA</th>
+              <th>SUBCONTRATISTA</th>
+              <th>TAG</th>
+              <th>SISTEMA</th>
+              <th>DESCRIPCIÓN</th>
+              <th>LEVEL</th>
+              <th>PQT DW</th>
+              <th>PQT BW</th>
+              <th>GQE</th>
+              <th>OBS</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <button id="prevPageBtn" class="btn-secondary">‹ Anterior</button>
+        <span id="pageInfo">Página 1</span>
+        <button id="nextPageBtn" class="btn-secondary">Siguiente ›</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
