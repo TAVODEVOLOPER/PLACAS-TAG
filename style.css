@@ -39,28 +39,50 @@ html, body {
 button { font-family: var(--sans); cursor: pointer; }
 input, select { font-family: var(--sans); }
 
-/* ---------- Setup screen ---------- */
-.setup-screen {
+/* ---------- Login screen ---------- */
+.login-screen {
+  position: relative;
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at 20% 0%, var(--blue-bg), transparent 45%),
-    radial-gradient(circle at 90% 100%, var(--teal-bg), transparent 45%),
-    var(--bg);
   padding: 24px;
+  background: #0c1420 url('assets/login-bg.webp') center 40% / cover no-repeat;
 }
 
-.setup-card {
-  width: 100%;
-  max-width: 420px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  padding: 32px;
+.login-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10,16,26,0.55), rgba(10,16,26,0.8));
 }
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255,255,255,0.97);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+.login-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  background: transparent;
+  border-top: none;
+  color: rgba(255,255,255,0.75);
+}
+.login-footer .footer-version {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.25);
+  color: #fff;
+}
+
+.label-optional { font-weight: 400; text-transform: none; color: var(--text-muted); }
 
 .setup-mark {
   font-family: var(--mono);
@@ -71,11 +93,11 @@ input, select { font-family: var(--sans); }
   font-weight: 600;
 }
 
-.setup-card h1 { font-size: 20px; margin: 0 0 8px; font-weight: 700; }
-.setup-card p { color: var(--text-muted); font-size: 13px; line-height: 1.5; margin: 0 0 20px; }
-.setup-card label { display: block; font-size: 12px; color: var(--text-muted); margin: 16px 0 6px; font-weight: 600; }
+.login-card h1 { font-size: 20px; margin: 0 0 8px; font-weight: 700; }
+.login-card p { color: var(--text-muted); font-size: 13px; line-height: 1.5; margin: 0 0 20px; }
+.login-card label { display: block; font-size: 12px; color: var(--text-muted); margin: 16px 0 6px; font-weight: 600; }
 
-.setup-card input {
+.login-card input {
   width: 100%;
   padding: 10px 12px;
   background: var(--panel-raised);
@@ -85,7 +107,7 @@ input, select { font-family: var(--sans); }
   font-size: 13px;
 }
 
-.setup-card input:focus { outline: none; border-color: var(--blue); background: #fff; }
+.login-card input:focus { outline: none; border-color: var(--blue); background: #fff; }
 
 .btn-primary {
   margin-top: 24px;
@@ -120,6 +142,17 @@ input, select { font-family: var(--sans); }
 .topbar-left { display: flex; align-items: baseline; gap: 8px; }
 .logo-mark { font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; color: var(--blue); font-size: 14px; }
 .logo-sub { color: var(--text-muted); font-size: 12px; }
+
+.role-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 12px;
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+.role-badge.role-admin { background: var(--purple-bg); color: var(--purple); }
 
 .tabs { display: flex; gap: 4px; flex: 1; }
 .tab-btn { background: none; border: none; color: var(--text-muted); padding: 8px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 600; }
@@ -229,6 +262,16 @@ main { flex: 1; padding: 24px; max-width: 1400px; width: 100%; margin: 0 auto; }
 }
 
 /* ---------- Heat list (discipline progress) ---------- */
+.heat-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.heat-legend span { display: flex; align-items: center; gap: 5px; }
+.heat-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
 .heat-list { display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; }
 
 .heat-row { display: grid; grid-template-columns: 150px 1fr 120px; align-items: center; gap: 12px; font-size: 12.5px; }
@@ -391,16 +434,16 @@ td input.gqe-input { width: 34px; text-align: center; text-transform: uppercase;
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-.setup-screen .app-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: transparent;
-  border-top: none;
-}
-
 /* ---------- Responsive ---------- */
+
+/* ---------- Role-based visibility ---------- */
+body.role-user .admin-only,
+body.role-user .admin-only-cell { display: none !important; }
+
+td.readonly-cell {
+  font-family: var(--mono);
+  color: var(--text);
+}
 @media (max-width: 900px) {
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
   .panels-row { grid-template-columns: 1fr; }

@@ -2,16 +2,19 @@
 
 Aplicación web para registrar y visualizar la clasificación de las placas TAG
 de equipos/tableros del proyecto en paquetes **PQT DW** / **PQT BW**, con la
-Google Sheet como base de datos en vivo (varias personas pueden editar a la
-vez) y la app publicada gratis en **GitHub Pages**.
+Google Sheet como base de datos en vivo y la app publicada gratis en
+**GitHub Pages**. Se entra con una contraseña de **Usuario** (ver, filtrar,
+exportar PDF) o **Administrador** (todo, incluida la edición).
 
 ```
 placas-app/
 ├── index.html          → la app (estructura)
 ├── style.css           → estilos
-├── app.js              → lógica (fetch a Apps Script, tabla, dashboard)
+├── app.js               → lógica y CONFIGURACIÓN (URL, contraseñas)
+├── assets/
+│   └── login-bg.webp    → imagen de fondo de la pantalla de inicio
 ├── apps-script/
-│   └── Code.gs          → backend: convierte tu Sheet en una API JSON
+│   └── Code.gs           → backend: convierte tu Sheet en una API JSON
 └── data/
     └── placas_import.csv → tus 14.439 filas actuales, listas para importar
 ```
@@ -45,58 +48,82 @@ placas-app/
 5. Autoriza los permisos que pida Google (es tu propio script accediendo a
    tu propia hoja).
 6. Copia la **URL de la aplicación web** que te entrega (termina en
-   `/exec`). La necesitarás en el paso 4.
+   `/exec`). La necesitarás en el paso 3.
 7. **Importante:** cada vez que edites `Code.gs`, tienes que crear una
    **nueva implementación** (o gestionar implementaciones → editar → nueva
    versión) para que los cambios se publiquen. Guardar el script no basta.
 
-## 3. Sube la app a GitHub
+## 3. Configura la app UNA sola vez (antes de compartirla)
 
-```bash
-cd placas-app
-git init
-git add .
-git commit -m "Primera versión de la app PLACAS"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
-git push -u origin main
+Abre `app.js` con cualquier editor de texto y edita estas líneas, cerca del
+principio del archivo:
+
+```js
+const APPS_SCRIPT_URL = 'PON_AQUI_TU_URL_DE_APPS_SCRIPT'; // ← pega la URL del paso 2
+const PASSWORDS = {
+  admin: 'admin2026',   // ← cambia esta contraseña
+  user: 'placas2026'    // ← cambia esta contraseña
+};
 ```
 
-Luego activa GitHub Pages:
-1. En tu repo de GitHub: **Settings > Pages**.
-2. Source: **Deploy from a branch** → branch `main`, carpeta `/ (root)`.
-3. Guarda. En un minuto tendrás tu app en
-   `https://TU_USUARIO.github.io/TU_REPO/`.
+Así, cuando compartas el enlace de la app con tu equipo, **nadie tiene que
+pegar ninguna URL** — solo entran con la contraseña que tú les des:
+- Contraseña de **usuario**: puede ver, filtrar y **exportar solo en PDF**.
+  No puede editar ni exportar CSV/Excel.
+- Contraseña de **administrador**: acceso completo (editar, exportar CSV,
+  Excel y PDF).
 
-Para futuras versiones, simplemente vuelve a hacer `git add . && git commit
--m "..." && git push` — GitHub Pages se actualiza solo.
+> ⚠️ **Importante sobre seguridad:** esta app es un sitio estático (no tiene
+> servidor propio), así que estas contraseñas son una traba de uso para
+> evitar ediciones o exportaciones accidentales del personal de campo — no
+> son una caja fuerte. Cualquiera con conocimientos técnicos podría verlas
+> mirando el código fuente en el navegador. No las uses para datos
+> verdaderamente confidenciales, y cámbialas si alguna vez sospechas que se
+> filtraron.
 
-## 4. Primer uso de la app
+## 4. Sube la app a GitHub
 
-1. Abre la URL de GitHub Pages.
-2. Pega la URL de Apps Script (`.../exec`) y tu nombre.
-3. Pulsa **Conectar**. Cada persona del equipo hace esto una vez en su
-   propio navegador (se guarda localmente, no se comparte).
+Arrastra **todo** el contenido de la carpeta `placas-app` (incluida la
+carpeta `assets/` con la imagen de fondo) a tu repositorio, tal como hiciste
+la primera vez. Si ya tienes el repo creado, entra a él, pulsa **Add file >
+Upload files** y arrastra los archivos — los que tengan el mismo nombre se
+reemplazan solos.
+
+Activa GitHub Pages si no lo has hecho: **Settings > Pages** > Source:
+"Deploy from a branch", rama `main`, carpeta `/ (root)` > Save.
+
+## 5. Primer uso de la app
+
+Comparte con tu equipo la URL de GitHub Pages
+(`https://TU_USUARIO.github.io/TU_REPO/`) y la contraseña que le
+corresponda a cada persona. Verán una pantalla de bienvenida con la
+fotografía de la plataforma y el campo de contraseña — nada más que
+configurar de su parte.
 
 ## Cómo funciona
 
 - **Resumen**: totales, % de avance, y desglose por paquete PQT DW, PQT BW y
-  por disciplina — se recalcula con cada actualización.
-- **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE) y
-  edición en línea de `PQT DW`, `PQT BW`, `GQE` y `OBS`. Cada fila se guarda
-  con su propio botón **Guardar**, para no perder cambios de otra persona
-  que esté editando otra fila a la vez.
+  **avance por disciplina** (qué % de TAGs de cada disciplina ya tiene
+  paquete asignado, con color de rojo → ámbar → teal según el avance).
+- **Clic en un paquete** (PQT DW o BW): abre una ventana con la lista
+  completa de TAGs de ese paquete, con su propio buscador.
+- **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE).
+  Los administradores editan `PQT DW`, `PQT BW`, `GQE` y `OBS` en línea, con
+  su propio botón **Guardar** por fila. Los usuarios ven la tabla en modo
+  solo lectura.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
-  así que dos guardados simultáneos no se pisan entre sí. Pulsa el botón
-  **⟳** para traer los últimos cambios de tus compañeros.
-- **Exportar CSV**: descarga exactamente lo que estás viendo (con los
-  filtros aplicados).
+  así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
+  traer los últimos cambios de tus compañeros.
+- **Exportar**: PDF (todos), y CSV/Excel (solo administradores) — siempre
+  con el filtro que tengas aplicado en ese momento.
+- **Carga rápida**: la primera vez que alguien entra en un dispositivo, la
+  app tarda unos segundos en traer las ~14.400 filas. A partir de ahí,
+  guarda una copia en ese navegador y la muestra al instante la próxima vez
+  mientras actualiza en segundo plano — así que solo la primera carga por
+  dispositivo se siente lenta.
 
 ## Notas y límites a tener en cuenta
 
-- La app carga las ~14.400 filas completas al abrir (una sola petición);
-  con conexión normal tarda unos segundos. Los filtros y la tabla trabajan
-  luego en memoria, sin más llamadas a la red.
 - La identificación de fila para guardar usa el número de fila real de la
   hoja (columna oculta `r`), no el TAG, porque hay 10 TAGs duplicados en tus
   datos actuales con distinto `ITEM` (equipos con placas repetidas o
@@ -107,5 +134,9 @@ Para futuras versiones, simplemente vuelve a hacer `git add . && git commit
   usuario con el enlace", o que hayas editado `Code.gs` sin crear una nueva
   implementación.
 - El pie de página ("By Gustavo developer" + versión) sale de la constante
-  `APP_VERSION` al principio de `app.js`. Súbela (por ejemplo a `v1.2.0`)
+  `APP_VERSION` al principio de `app.js`. Súbela (por ejemplo a `v1.3.0`)
   cada vez que subas una versión nueva a GitHub, para llevar la cuenta.
+- Si algún navegador quedó "pegado" mostrando una versión vieja de la app
+  después de subir cambios, pide que hagan una recarga forzada
+  (Ctrl+Shift+R en Windows, Cmd+Shift+R en Mac) — a veces el navegador
+  guarda en caché los archivos `style.css` y `app.js` antiguos.

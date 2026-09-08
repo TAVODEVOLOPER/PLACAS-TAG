@@ -10,21 +10,22 @@
 </head>
 <body>
 
-<div id="setupScreen" class="setup-screen hidden">
-  <div class="setup-card">
+<div id="loginScreen" class="login-screen">
+  <div class="login-overlay"></div>
+  <div class="login-card">
     <div class="setup-mark">PLACAS</div>
-    <h1>Conectar con tu hoja de cálculo</h1>
-    <p>Pega la URL de tu Apps Script (Web App) para leer y guardar los datos en tu Google Sheet. Se guarda solo en este navegador.</p>
-    <label for="apiUrlInput">URL de la Web App</label>
-    <input id="apiUrlInput" type="url" placeholder="https://script.google.com/macros/s/XXXX/exec" autocomplete="off">
-    <label for="userNameInput">Tu nombre (para registrar quién edita)</label>
+    <h1>Control de paquetes</h1>
+    <p>Ingresa la contraseña que te compartieron para entrar. Tu acceso (ver o editar) depende de la contraseña que uses.</p>
+    <label for="passwordInput">Contraseña</label>
+    <input id="passwordInput" type="password" placeholder="••••••••" autocomplete="off">
+    <label for="userNameInput">Tu nombre <span class="label-optional">(para registrar quién edita)</span></label>
     <input id="userNameInput" type="text" placeholder="Ej. J. Pérez" autocomplete="off">
-    <button id="saveSetupBtn" class="btn-primary">Conectar</button>
-    <p id="setupError" class="setup-error hidden"></p>
+    <button id="loginBtn" class="btn-primary">Entrar</button>
+    <p id="loginError" class="setup-error hidden"></p>
   </div>
-  <footer class="app-footer">
+  <footer class="app-footer login-footer">
     <span>By Gustavo developer</span>
-    <span class="footer-version" id="footerVersionSetup"></span>
+    <span class="footer-version" id="footerVersionLogin"></span>
   </footer>
 </div>
 
@@ -34,6 +35,7 @@
     <div class="topbar-left">
       <span class="logo-mark">PLACAS</span>
       <span class="logo-sub">Control de paquetes</span>
+      <span id="roleBadge" class="role-badge">—</span>
     </div>
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dashboard">Resumen</button>
@@ -42,7 +44,7 @@
     <div class="topbar-right">
       <span id="syncStatus" class="sync-status">—</span>
       <button id="refreshBtn" class="btn-icon" title="Actualizar datos">⟳</button>
-      <button id="settingsBtn" class="btn-icon" title="Ajustes">⚙</button>
+      <button id="logoutBtn" class="btn-icon" title="Cerrar sesión">⎋</button>
     </div>
   </header>
 
@@ -90,7 +92,18 @@
 
       <div class="panel">
         <h2>Avance por disciplina</h2>
-        <p class="panel-hint">% de TAGs ya asignados a un paquete (PQT DW o BW) dentro de cada disciplina. El color indica qué tan avanzada está.</p>
+        <p class="panel-hint">
+          Cada barra es una disciplina (ej. INS, TEL, HVAC…). El número de la
+          derecha dice <strong>cuántos TAGs de esa disciplina ya tienen un
+          paquete asignado, de cuántos hay en total</strong>, y el % de avance.
+          El color de la barra sube de rojo (recién empezando) a ámbar (a
+          medias) y teal (casi terminada).
+        </p>
+        <div class="heat-legend">
+          <span><i style="background:#dc2626"></i> 0–32%</span>
+          <span><i style="background:#d97706"></i> 33–65%</span>
+          <span><i style="background:#0d9488"></i> 66–100%</span>
+        </div>
         <div id="chartDisciplina" class="heat-list"></div>
       </div>
     </section>
@@ -110,7 +123,9 @@
           <option value="Y">Creados (Y)</option>
           <option value="">Sin marcar</option>
         </select>
-        <button id="exportBtn" class="btn-secondary">Exportar CSV (filtro actual)</button>
+        <button id="exportCsvBtn" class="btn-secondary admin-only">Exportar CSV</button>
+        <button id="exportExcelBtn" class="btn-secondary admin-only">Exportar Excel</button>
+        <button id="exportPdfBtn" class="btn-secondary">Exportar PDF</button>
       </div>
       <div class="results-count"><span id="resultsCount">0</span> resultados</div>
 
@@ -130,7 +145,7 @@
               <th>PQT BW</th>
               <th>GQE</th>
               <th>OBS</th>
-              <th></th>
+              <th class="admin-only-cell"></th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
@@ -183,6 +198,9 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

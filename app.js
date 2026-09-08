@@ -3,32 +3,54 @@
  * ------------------------------------------------------------
  * Habla con el backend de Apps Script (Code.gs) para leer y
  * escribir directamente sobre tu Google Sheet.
+ *
+ * CONFIGURACIÓN ANTES DE COMPARTIR LA APP (solo tú, Gustavo):
+ * 1. Reemplaza APPS_SCRIPT_URL de abajo por la URL de tu Web App
+ *    (Extensiones > Apps Script > Implementar > la URL que termina
+ *    en /exec).
+ * 2. Cambia PASSWORDS.admin y PASSWORDS.user por las contraseñas
+ *    que quieras repartir a tu equipo.
+ * 3. Sube estos archivos a GitHub. Nadie más tendrá que tocar nada
+ *    de esto: solo entran con la contraseña que les des.
+ *
+ * IMPORTANTE (léelo antes de repartir contraseñas):
+ * Esta app es un sitio estático (no tiene servidor propio), así que
+ * estas contraseñas son una traba de uso, no una caja fuerte: alguien
+ * con conocimientos técnicos podría leerlas en el código fuente del
+ * navegador. Sirven muy bien para evitar que el personal de campo
+ * edite por error o exporte de más, pero no las uses para datos
+ * verdaderamente confidenciales.
  */
 
-const STORAGE_KEY_URL = 'placas_api_url';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx3hM3kScscjcM6md0Uti3sHyTO6slVGcCWWBn80smizwbwBNS3k3QDxNffbCRenu0/exec'; // ← reemplaza esto
+const PASSWORDS = {
+  admin: 'DRAGADOS-ADMIN',   // ← cambia esta contraseña
+  user: 'DRAGADOS-USER'    // ← cambia esta contraseña
+};
+
+const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
+const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.2.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
 let state = {
-  apiUrl: localStorage.getItem(STORAGE_KEY_URL) || '',
-  userName: localStorage.getItem(STORAGE_KEY_NAME) || '',
+  role: sessionStorage.getItem(STORAGE_KEY_ROLE) || '',
+  userName: sessionStorage.getItem(STORAGE_KEY_NAME) || '',
   rows: [],
   filtered: [],
-  page: 1,
-  dirty: new Map() // r -> {dw,bw,g,o}
+  page: 1
 };
 
-// ---------------- Setup ----------------
+// ---------------- Login ----------------
 
-function showSetup(errorMsg) {
-  document.getElementById('setupScreen').classList.remove('hidden');
+function showLogin(errorMsg) {
+  document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
-  document.getElementById('apiUrlInput').value = state.apiUrl;
   document.getElementById('userNameInput').value = state.userName;
-  const err = document.getElementById('setupError');
+  const err = document.getElementById('loginError');
   if (errorMsg) {
     err.textContent = errorMsg;
     err.classList.remove('hidden');
@@ -38,34 +60,62 @@ function showSetup(errorMsg) {
 }
 
 function showApp() {
-  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  document.body.classList.remove('role-admin', 'role-user');
+  document.body.classList.add('role-' + state.role);
+  const badge = document.getElementById('roleBadge');
+  badge.textContent = state.role === 'admin' ? 'Administrador' : 'Usuario';
+  badge.className = 'role-badge ' + (state.role === 'admin' ? 'role-admin' : '');
 }
 
-document.getElementById('saveSetupBtn').addEventListener('click', async () => {
-  const url = document.getElementById('apiUrlInput').value.trim();
-  const name = document.getElementById('userNameInput').value.trim();
-  if (!url) { showSetup('Pega la URL de tu Apps Script Web App.'); return; }
-  state.apiUrl = url;
-  state.userName = name;
-  localStorage.setItem(STORAGE_KEY_URL, url);
-  localStorage.setItem(STORAGE_KEY_NAME, name);
-  await boot();
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('passwordInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
 });
 
-document.getElementById('settingsBtn').addEventListener('click', () => showSetup());
+function doLogin() {
+  if (APPS_SCRIPT_URL.includes('PON_AQUI')) {
+    showLogin('La app todavía no está configurada: falta pegar la URL de Apps Script en app.js.');
+    return;
+  }
+  const pass = document.getElementById('passwordInput').value;
+  const name = document.getElementById('userNameInput').value.trim();
+  let role = '';
+  if (pass && pass === PASSWORDS.admin) role = 'admin';
+  else if (pass && pass === PASSWORDS.user) role = 'user';
+
+  if (!role) {
+    showLogin('Contraseña incorrecta. Verifica con quien te la compartió.');
+    return;
+  }
+
+  state.role = role;
+  state.userName = name;
+  sessionStorage.setItem(STORAGE_KEY_ROLE, role);
+  sessionStorage.setItem(STORAGE_KEY_NAME, name);
+  document.getElementById('passwordInput').value = '';
+  boot();
+}
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem(STORAGE_KEY_ROLE);
+  sessionStorage.removeItem(STORAGE_KEY_NAME);
+  state.role = '';
+  showLogin();
+});
 
 // ---------------- API ----------------
 
 async function apiGet(action) {
-  const res = await fetch(`${state.apiUrl}?action=${action}`);
+  const res = await fetch(`${APPS_SCRIPT_URL}?action=${action}`);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return res.json();
 }
 
 async function apiPost(payload) {
   // text/plain evita el preflight CORS en Apps Script Web Apps
-  const res = await fetch(state.apiUrl, {
+  const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
@@ -74,22 +124,54 @@ async function apiPost(payload) {
   return res.json();
 }
 
-// ---------------- Boot / sync ----------------
+// ---------------- Boot / sync (con caché para carga instantánea) ----------------
+
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function saveCache(rows) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ rows, ts: Date.now() }));
+  } catch (e) { /* localStorage lleno o no disponible: seguimos sin caché */ }
+}
 
 async function boot() {
   showApp();
-  setSyncStatus('Cargando…');
+  applyRoleToTableUI();
+
+  const cached = loadCache();
+  if (cached && cached.rows && cached.rows.length) {
+    state.rows = cached.rows;
+    populateFilterOptions();
+    applyFilters();
+    renderDashboard();
+    setSyncStatus('Datos guardados · actualizando…');
+  } else {
+    setSyncStatus('Cargando…');
+  }
+
   try {
     const data = await apiGet('getData');
     if (!data.ok) throw new Error(data.error || 'Error desconocido');
     state.rows = data.rows;
+    saveCache(data.rows);
     populateFilterOptions();
     applyFilters();
     renderDashboard();
     setSyncStatus('Actualizado ' + new Date().toLocaleTimeString('es-ES'));
   } catch (err) {
-    setSyncStatus('Error de conexión');
-    showSetup('No se pudo conectar: ' + err.message + '. Revisa la URL y que la Web App esté desplegada con acceso "Cualquier usuario con el enlace".');
+    if (cached && cached.rows && cached.rows.length) {
+      setSyncStatus('Sin conexión · mostrando datos guardados');
+      showToast('No se pudo actualizar (sin conexión). Mostrando la última copia guardada en este dispositivo.', 'error');
+    } else {
+      setSyncStatus('Error de conexión');
+      showToast('No se pudo conectar con la hoja de datos: ' + err.message, 'error');
+    }
   }
 }
 
@@ -98,6 +180,13 @@ function setSyncStatus(text) {
 }
 
 document.getElementById('refreshBtn').addEventListener('click', boot);
+
+// ---------------- Role-based UI ----------------
+
+function applyRoleToTableUI() {
+  const canEdit = state.role === 'admin';
+  document.getElementById('dataTable').classList.toggle('readonly-mode', !canEdit);
+}
 
 // ---------------- Tabs ----------------
 
@@ -190,10 +279,8 @@ function renderChipGrid(elId, dict, field) {
 
 // Escala de calor: rojo (bajo avance) → ámbar → teal (alto avance)
 function heatColor(pct) {
-  if (pct >= 100) return '#0d9488';
-  if (pct >= 66) return '#2fa88f';
+  if (pct >= 66) return '#0d9488';
   if (pct >= 33) return '#d97706';
-  if (pct > 0) return '#e0854a';
   return '#dc2626';
 }
 
@@ -323,19 +410,38 @@ function renderTablePage() {
   const pageRows = state.filtered.slice(start, start + PAGE_SIZE);
 
   const tbody = document.getElementById('tableBody');
-  tbody.innerHTML = pageRows.map(rowHtml).join('');
+  const canEdit = state.role === 'admin';
+  tbody.innerHTML = pageRows.map(row => canEdit ? editableRowHtml(row) : readonlyRowHtml(row)).join('');
 
   document.getElementById('pageInfo').textContent = `Página ${state.page} de ${totalPages}`;
 
-  tbody.querySelectorAll('.editable').forEach(input => {
-    input.addEventListener('input', onFieldChange);
-  });
-  tbody.querySelectorAll('.row-save-btn').forEach(btn => {
-    btn.addEventListener('click', onSaveRow);
-  });
+  if (canEdit) {
+    tbody.querySelectorAll('.editable').forEach(input => input.addEventListener('input', onFieldChange));
+    tbody.querySelectorAll('.row-save-btn').forEach(btn => btn.addEventListener('click', onSaveRow));
+  }
 }
 
-function rowHtml(row) {
+function readonlyRowHtml(row) {
+  return `
+    <tr data-row="${row.r}">
+      <td>${escapeHtml(row.i)}</td>
+      <td>${escapeHtml(row.ins)}</td>
+      <td>${escapeHtml(row.dis)}</td>
+      <td>${escapeHtml(row.sub)}</td>
+      <td class="tag-cell" title="${escapeHtml(row.tag)}">${escapeHtml(row.tag)}</td>
+      <td>${escapeHtml(row.sys)}</td>
+      <td class="desc-cell" title="${escapeHtml(row.desc)}">${escapeHtml(row.desc)}</td>
+      <td>${escapeHtml(row.lvl)}</td>
+      <td class="readonly-cell">${escapeHtml(row.dw)}</td>
+      <td class="readonly-cell">${escapeHtml(row.bw)}</td>
+      <td class="readonly-cell">${escapeHtml(row.g)}</td>
+      <td>${escapeHtml(row.o)}</td>
+      <td></td>
+    </tr>
+  `;
+}
+
+function editableRowHtml(row) {
   return `
     <tr data-row="${row.r}">
       <td>${escapeHtml(row.i)}</td>
@@ -364,6 +470,7 @@ function onFieldChange(e) {
 }
 
 async function onSaveRow(e) {
+  if (state.role !== 'admin') return;
   const btn = e.target;
   const tr = btn.closest('tr');
   const r = Number(tr.dataset.row);
@@ -383,13 +490,13 @@ async function onSaveRow(e) {
     const result = await apiPost(payload);
     if (!result.ok) throw new Error(result.error || 'Error desconocido');
 
-    // reflejar en el estado local para que el dashboard cuadre
     const rowObj = state.rows.find(x => x.r === r);
     if (rowObj) {
       rowObj.dw = payload.pqtDW;
       rowObj.bw = payload.pqtBW;
       rowObj.g = payload.gqe;
       rowObj.o = payload.obs;
+      saveCache(state.rows);
     }
 
     btn.classList.remove('dirty', 'error');
@@ -413,23 +520,66 @@ document.getElementById('nextPageBtn').addEventListener('click', () => {
   if (state.page < totalPages) { state.page++; renderTablePage(); }
 });
 
-// ---------------- Export CSV ----------------
+// ---------------- Export: CSV / Excel / PDF ----------------
 
-document.getElementById('exportBtn').addEventListener('click', () => {
-  const headers = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'OBS'];
-  const lines = [headers.join(',')];
-  state.filtered.forEach(row => {
-    const vals = [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o];
-    lines.push(vals.map(csvEscape).join(','));
-  });
+const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'OBS'];
+
+function exportRowsAsArrays() {
+  return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o]);
+}
+
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  const lines = [EXPORT_HEADERS.join(',')];
+  exportRowsAsArrays().forEach(vals => lines.push(vals.map(csvEscape).join(',')));
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, `placas_export_${todayStr()}.csv`);
+});
+
+document.getElementById('exportExcelBtn').addEventListener('click', () => {
+  if (typeof XLSX === 'undefined') { showToast('No se pudo cargar el módulo de Excel. Revisa tu conexión.', 'error'); return; }
+  const data = [EXPORT_HEADERS, ...exportRowsAsArrays()];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = EXPORT_HEADERS.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'PLACAS');
+  XLSX.writeFile(wb, `placas_export_${todayStr()}.xlsx`);
+});
+
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  doc.setFontSize(14);
+  doc.text('PLACAS · Control de paquetes', 30, 28);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${state.filtered.length} registro(s)`, 30, 44);
+
+  doc.autoTable({
+    startY: 56,
+    head: [EXPORT_HEADERS],
+    body: exportRowsAsArrays(),
+    styles: { fontSize: 6.5, cellPadding: 3, overflow: 'linebreak' },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [244, 246, 250] },
+    margin: { left: 20, right: 20 },
+    columnStyles: { 4: { cellWidth: 130 }, 6: { cellWidth: 140 } }
+  });
+
+  doc.save(`placas_export_${todayStr()}.pdf`);
+});
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `placas_export_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-});
+}
 
 function csvEscape(val) {
   const s = (val === null || val === undefined) ? '' : String(val);
@@ -453,13 +603,13 @@ function showToast(msg, type) {
   el.className = 'toast ' + (type || '');
   el.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add('hidden'), 3500);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
 }
 
 // ---------------- Init ----------------
 
-if (state.apiUrl) {
+if (state.role) {
   boot();
 } else {
-  showSetup();
+  showLogin();
 }
