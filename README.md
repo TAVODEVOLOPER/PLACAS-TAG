@@ -122,13 +122,15 @@ configurar de su parte.
 - **Clic en un paquete** (PQT DW o BW): abre una ventana con la lista
   completa de TAGs de ese paquete, con su propio buscador.
 - **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE,
-  **Entregado**) y el botón **Paquetes**, que abre una ventana para elegir
-  uno o varios paquetes DW/BW específicos — útil para entregar solo los
-  TAGs de un paquete a un subcontratista. Los administradores editan
-  `PQT DW`, `PQT BW`, `GQE`, **`ENTREGADO`** y `OBS` en línea, con su
-  propio botón **Guardar** por fila (marca `Y` en Entregado cuando la
-  placa ya se entregó al subcontratista — útil porque las entregas se
-  hacen por partes). Los usuarios ven la tabla en modo solo lectura.
+  **Entregado**). El botón **Paquetes** abre una ventana para elegir uno o
+  varios paquetes DW/BW específicos, y junto a él hay un atajo rápido
+  **Todos / Solo DW / Solo BW** para filtrar por tipo de paquete sin tener
+  que marcar cada número (muy útil en celular) — ambos comparten el mismo
+  filtro. Los administradores editan `PQT DW`, `PQT BW`, `GQE`,
+  **`ENTREGADO`** y `OBS` en línea, con su propio botón **Guardar** por
+  fila (marca `Y` en Entregado cuando la placa ya se entregó al
+  subcontratista — útil porque las entregas se hacen por partes). Los
+  usuarios ven la tabla en modo solo lectura.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
   así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
   traer los últimos cambios de tus compañeros.

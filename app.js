@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.8.0';
+const APP_VERSION = 'v1.9.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -379,6 +379,7 @@ function packageCounts(field) {
 function populatePackagePicker() {
   renderPickerList('pickerDW', packageCounts('dw'), state.selectedDW);
   renderPickerList('pickerBW', packageCounts('bw'), state.selectedBW);
+  updateQuickFilterButtons();
 }
 
 function renderPickerList(elId, counts, selectedSet) {
@@ -403,6 +404,44 @@ function updatePackageFilterBtnLabel() {
     ? `Paquetes (${total} seleccionados)`
     : 'Paquetes (todos)';
 }
+
+// Mantiene resaltado el botón rápido (Todos / Solo DW / Solo BW) que
+// corresponda al estado actual de selección, sea que se haya llegado ahí
+// por el filtro rápido o eligiendo paquetes específicos en el modal.
+function updateQuickFilterButtons() {
+  const allDW = Object.keys(packageCounts('dw'));
+  const allBW = Object.keys(packageCounts('bw'));
+  const isAllDW = allDW.length > 0 && state.selectedDW.size === allDW.length && state.selectedBW.size === 0;
+  const isAllBW = allBW.length > 0 && state.selectedBW.size === allBW.length && state.selectedDW.size === 0;
+  const isNone = state.selectedDW.size === 0 && state.selectedBW.size === 0;
+
+  document.querySelectorAll('.pkg-quick-btn').forEach(btn => {
+    const type = btn.dataset.type;
+    const active = (type === '' && isNone) || (type === 'DW' && isAllDW) || (type === 'BW' && isAllBW);
+    btn.classList.toggle('active', active);
+  });
+}
+
+function setQuickPackageFilter(type) {
+  if (type === 'DW') {
+    state.selectedDW = new Set(Object.keys(packageCounts('dw')));
+    state.selectedBW = new Set();
+  } else if (type === 'BW') {
+    state.selectedBW = new Set(Object.keys(packageCounts('bw')));
+    state.selectedDW = new Set();
+  } else {
+    state.selectedDW = new Set();
+    state.selectedBW = new Set();
+  }
+  updatePackageFilterBtnLabel();
+  updateQuickFilterButtons();
+  state.page = 1;
+  applyFilters();
+}
+
+document.querySelectorAll('.pkg-quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => setQuickPackageFilter(btn.dataset.type));
+});
 
 function fillSelect(id, values, placeholder) {
   const sel = document.getElementById(id);
@@ -429,6 +468,7 @@ document.getElementById('pickerApplyBtn').addEventListener('click', () => {
     [...document.querySelectorAll('#pickerBW input:checked')].map(i => i.value)
   );
   updatePackageFilterBtnLabel();
+  updateQuickFilterButtons();
   document.getElementById('packagePickerModal').classList.add('hidden');
   state.page = 1;
   applyFilters();
@@ -439,6 +479,7 @@ document.getElementById('pickerClearBtn').addEventListener('click', () => {
   state.selectedDW = new Set();
   state.selectedBW = new Set();
   updatePackageFilterBtnLabel();
+  updateQuickFilterButtons();
   document.getElementById('packagePickerModal').classList.add('hidden');
   state.page = 1;
   applyFilters();
