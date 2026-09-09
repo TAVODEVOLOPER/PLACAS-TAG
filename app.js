@@ -22,7 +22,7 @@
  * verdaderamente confidenciales.
  */
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx3hM3kScscjcM6md0Uti3sHyTO6slVGcCWWBn80smizwbwBNS3k3QDxNffbCRenu0/exec'; // ← reemplaza esto
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx3hM3kScscjcM6md0Uti3sHyTO6slVGcCWWBn80smizwbwBNS3k3QDxNffbCRenu0/exec';
 const PASSWORDS = {
   admin: 'admin2026',   // ← cambia esta contraseña
   user: 'placas2026'    // ← cambia esta contraseña
@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.4.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -699,6 +699,42 @@ function showToast(msg, type) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
 }
+
+// ---------------- Instalar como app (PWA) ----------------
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* no es crítico si falla */ });
+  });
+}
+
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtnLogin').classList.remove('hidden');
+  document.getElementById('installBtnApp').classList.remove('hidden');
+});
+
+async function triggerInstall() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  document.getElementById('installBtnLogin').classList.add('hidden');
+  document.getElementById('installBtnApp').classList.add('hidden');
+}
+
+document.getElementById('installBtnLogin').addEventListener('click', triggerInstall);
+document.getElementById('installBtnApp').addEventListener('click', triggerInstall);
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  document.getElementById('installBtnLogin').classList.add('hidden');
+  document.getElementById('installBtnApp').classList.add('hidden');
+  showToast('App instalada correctamente.', 'success');
+});
 
 // ---------------- Init ----------------
 

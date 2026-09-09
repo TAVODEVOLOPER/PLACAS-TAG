@@ -11,8 +11,12 @@ placas-app/
 ├── index.html          → la app (estructura)
 ├── style.css           → estilos
 ├── app.js               → lógica y CONFIGURACIÓN (URL, contraseñas)
+├── manifest.json         → permite "Instalar app" en el dispositivo
+├── sw.js                 → service worker mínimo (requerido para instalar)
 ├── assets/
-│   └── login-bg.webp    → imagen de fondo de la pantalla de inicio
+│   ├── login-bg.webp     → imagen de fondo de la pantalla de inicio
+│   ├── icon-192.png, icon-512.png, icon-maskable-512.png → íconos de la app
+│   └── apple-touch-icon.png → ícono para iPhone/iPad
 ├── apps-script/
 │   └── Code.gs           → backend: convierte tu Sheet en una API JSON
 └── data/
@@ -125,6 +129,13 @@ configurar de su parte.
   guarda una copia en ese navegador y la muestra al instante la próxima vez
   mientras actualiza en segundo plano — así que solo la primera carga por
   dispositivo se siente lenta.
+
+- **Instalar como app**: si el navegador lo permite (Chrome, Edge, Android),
+  aparece un botón **"Instalar app"** en la pantalla de inicio y en la
+  barra superior. Al instalarla queda como un ícono más en el celular o el
+  escritorio, y abre en su propia ventana sin barra de navegador. En
+  iPhone/iPad (Safari no dispara ese botón) se instala manualmente:
+  Compartir → "Añadir a pantalla de inicio".
 
 ## Notas y límites a tener en cuenta
 
