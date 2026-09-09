@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.7.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -615,10 +615,25 @@ document.getElementById('nextPageBtn').addEventListener('click', () => {
 
 // ---------------- Export: CSV / Excel / PDF ----------------
 
+const APP_TITLE = 'PLACAS-TAG DW / BW';
+
 const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'ENTREGADO', 'OBS'];
 
 function exportRowsAsArrays() {
   return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.ent, row.o]);
+}
+
+// Ordena por número de paquete (DW o el que tenga la fila) de menor a mayor;
+// las filas sin paquete quedan al final. Usado por Excel y por el PDF de tabla.
+function sortByPackageAsc(rows) {
+  const keyOf = (r) => {
+    const dw = r.dw !== '' && r.dw !== null && r.dw !== undefined ? Number(r.dw) : null;
+    const bw = r.bw !== '' && r.bw !== null && r.bw !== undefined ? Number(r.bw) : null;
+    if (dw !== null) return dw;
+    if (bw !== null) return bw;
+    return Infinity;
+  };
+  return [...rows].sort((a, b) => keyOf(a) - keyOf(b));
 }
 
 document.getElementById('exportCsvBtn').addEventListener('click', () => {
@@ -628,15 +643,48 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
   downloadBlob(blob, `placas_export_${todayStr()}.csv`);
 });
 
+// Excel: para administradores. Oculta GQE y ENTREGADO (control interno del
+// administrador) y, si el filtro de paquetes usa solo DW o solo BW, oculta
+// también la otra columna de paquete. Ordenado por paquete ascendente.
 document.getElementById('exportExcelBtn').addEventListener('click', () => {
   if (typeof XLSX === 'undefined') { showToast('No se pudo cargar el módulo de Excel. Revisa tu conexión.', 'error'); return; }
-  const data = [EXPORT_HEADERS, ...exportRowsAsArrays()];
+
+  const onlyDW = state.selectedDW.size > 0 && state.selectedBW.size === 0;
+  const onlyBW = state.selectedBW.size > 0 && state.selectedDW.size === 0;
+
+  let headers = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'OBS'];
+  let rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.o];
+
+  if (onlyDW) {
+    headers = headers.filter(h => h !== 'PQT BW');
+    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.o];
+  } else if (onlyBW) {
+    headers = headers.filter(h => h !== 'PQT DW');
+    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.bw, row.o];
+  }
+
+  const sorted = sortByPackageAsc(state.filtered);
+  const data = [headers, ...sorted.map(rowMapper)];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = EXPORT_HEADERS.map(() => ({ wch: 18 }));
+  ws['!cols'] = headers.map(() => ({ wch: 18 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'PLACAS');
   XLSX.writeFile(wb, `placas_export_${todayStr()}.xlsx`);
 });
+
+// Agrega numeración de páginas y el pie de página en todas las páginas de un PDF ya construido.
+function addPdfFooter(doc) {
+  const pageCount = doc.internal.getNumberOfPages();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text('By Gustavo developer', 24, pageH - 14);
+    doc.text(`Página ${i} de ${pageCount}`, pageW - 24, pageH - 14, { align: 'right' });
+  }
+}
 
 document.getElementById('exportPdfBtn').addEventListener('click', () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
@@ -644,21 +692,12 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
 
   doc.setFontSize(14);
-  doc.text('PLACAS · Control de paquetes', 30, 28);
+  doc.text(APP_TITLE, 30, 28);
   doc.setFontSize(9);
   doc.setTextColor(100);
   doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${state.filtered.length} registro(s)`, 30, 44);
 
-  const sortedRows = [...state.filtered].sort((a, b) => {
-    const keyOf = (r) => {
-      const dw = r.dw !== '' && r.dw !== null && r.dw !== undefined ? Number(r.dw) : null;
-      const bw = r.bw !== '' && r.bw !== null && r.bw !== undefined ? Number(r.bw) : null;
-      if (dw !== null) return dw;
-      if (bw !== null) return bw;
-      return Infinity; // sin paquete: al final
-    };
-    return keyOf(a) - keyOf(b);
-  });
+  const sortedRows = sortByPackageAsc(state.filtered);
 
   // Si el filtro de paquetes solo usa DW o solo BW, no mostramos la otra
   // columna de paquete (queda vacía en todas las filas y solo confunde).
@@ -687,12 +726,118 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
     styles: { fontSize: 6.5, cellPadding: 3, overflow: 'linebreak' },
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 246, 250] },
-    margin: { left: 20, right: 20 },
+    margin: { left: 20, right: 20, bottom: 30 },
     columnStyles: { [tagColIndex]: { cellWidth: 130 }, [descColIndex]: { cellWidth: 140 } }
   });
 
+  addPdfFooter(doc);
   doc.save(`placas_export_${todayStr()}.pdf`);
 });
+
+// PDF en vertical, una "tarjeta" por paquete (encabezado de color + su tabla
+// de TAGs), pensado para entregar el avance por paquete a cada subcontratista.
+document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
+  if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 24;
+  const bottomLimit = pageH - 34;
+
+  doc.setFontSize(14);
+  doc.text(APP_TITLE, marginX, 28);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${state.filtered.length} registro(s)`, marginX, 44);
+
+  // Agrupar filas por paquete (una fila puede caer en DW y BW a la vez si tiene ambos)
+  const groups = {};
+  const pushToGroup = (key, tipo, num, row) => {
+    if (!groups[key]) groups[key] = { tipo, num, rows: [] };
+    groups[key].rows.push(row);
+  };
+  state.filtered.forEach(row => {
+    const hasDW = row.dw !== '' && row.dw !== null && row.dw !== undefined;
+    const hasBW = row.bw !== '' && row.bw !== null && row.bw !== undefined;
+    if (hasDW) pushToGroup('DW-' + row.dw, 'PQT DW', row.dw, row);
+    if (hasBW) pushToGroup('BW-' + row.bw, 'PQT BW', row.bw, row);
+    if (!hasDW && !hasBW) pushToGroup('SIN', 'Sin paquete asignado', '', row);
+  });
+
+  const groupList = Object.entries(groups).sort((a, b) => {
+    const na = a[1].num === '' ? Infinity : Number(a[1].num);
+    const nb = b[1].num === '' ? Infinity : Number(b[1].num);
+    return na - nb || a[1].tipo.localeCompare(b[1].tipo);
+  });
+
+  let y = 60;
+  const cardHeaders = ['ITEM', 'TAG', 'DISC.', 'SUBCONTRATISTA', 'SISTEMA', 'DESCRIPCIÓN', 'LVL', 'ENTREG.', 'OBS'];
+  const colWidths = [30, 62, 34, 82, 46, 132, 22, 44, 96]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
+
+  groupList.forEach(([key, group]) => {
+    const total = group.rows.length;
+    const entregados = group.rows.filter(r => String(r.ent).toUpperCase() === 'Y').length;
+    const pct = total ? Math.round((entregados / total) * 100) : 0;
+    const c = chipColorFor(key === 'SIN' ? 'sin' : group.num);
+    const rgb = hexToRgb(c.fg);
+
+    // Si no cabe ni el encabezado + una fila en lo que queda de página, saltamos de página.
+    if (y + 60 > bottomLimit) { doc.addPage(); y = 40; }
+
+    // Barra de encabezado del paquete
+    doc.setFillColor(rgb.r, rgb.g, rgb.b);
+    doc.rect(marginX, y, pageW - marginX * 2, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text(`${group.tipo}${group.num !== '' ? ' ' + group.num : ''}`, marginX + 8, y + 15);
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${total} TAG(s)  ·  ${entregados} entregado(s) (${pct}%)`, pageW - marginX - 8, y + 15, { align: 'right' });
+    y += 22;
+
+    const body = group.rows.map(r => [
+      r.i, r.tag, r.dis, r.sub, r.sys, r.desc, r.lvl,
+      String(r.ent).toUpperCase() === 'Y' ? 'Sí' : 'No',
+      r.o
+    ]);
+
+    doc.autoTable({
+      startY: y,
+      head: [cardHeaders],
+      body: body,
+      styles: { fontSize: 6.8, cellPadding: 3, overflow: 'linebreak' },
+      headStyles: { fillColor: [229, 233, 240], textColor: [61, 71, 86], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [247, 249, 251] },
+      margin: { left: marginX, right: marginX, bottom: 30 },
+      columnStyles: {
+        0: { cellWidth: colWidths[0] }, 1: { cellWidth: colWidths[1] }, 2: { cellWidth: colWidths[2] },
+        3: { cellWidth: colWidths[3] }, 4: { cellWidth: colWidths[4] }, 5: { cellWidth: colWidths[5] },
+        6: { cellWidth: colWidths[6] }, 7: { cellWidth: colWidths[7] }, 8: { cellWidth: colWidths[8] }
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 7) {
+          data.cell.styles.textColor = data.cell.raw === 'Sí' ? [13, 148, 136] : [220, 38, 38];
+        }
+      }
+    });
+
+    y = doc.lastAutoTable.finalY + 16;
+  });
+
+  addPdfFooter(doc);
+  doc.save(`placas_paquetes_${todayStr()}.pdf`);
+});
+
+function hexToRgb(hex) {
+  const clean = hex.replace('#', '');
+  return {
+    r: parseInt(clean.substring(0, 2), 16),
+    g: parseInt(clean.substring(2, 4), 16),
+    b: parseInt(clean.substring(4, 6), 16)
+  };
+}
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 

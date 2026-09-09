@@ -1,4 +1,4 @@
-# PLACAS · Control de paquetes
+# PLACAS-TAG DW / BW
 
 Aplicación web para registrar y visualizar la clasificación de las placas TAG
 de equipos/tableros del proyecto en paquetes **PQT DW** / **PQT BW**, con la
@@ -132,12 +132,22 @@ configurar de su parte.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
   así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
   traer los últimos cambios de tus compañeros.
-- **Exportar**: PDF (todos), y CSV/Excel (solo administradores) — siempre
-  con los filtros que tengas aplicados en ese momento (incluido el filtro
-  de paquetes). El PDF además ordena las filas por número de paquete de
-  menor a mayor. Si en el filtro de paquetes eliges **solo** paquetes DW
-  (o **solo** BW), el PDF oculta automáticamente la columna del otro tipo
-  para no confundir — si eliges de ambos tipos a la vez, muestra las dos.
+- **Exportar**:
+  - **CSV**: todas las columnas, con los filtros que tengas aplicados.
+  - **Excel** (solo administradores): oculta `GQE` y `ENTREGADO` (son
+    control interno del administrador) y, si el filtro de paquetes usa
+    solo DW o solo BW, oculta también la otra columna de paquete. Siempre
+    ordenado por número de paquete de menor a mayor.
+  - **PDF (tabla)**: todas las columnas en una tabla plana, ordenada por
+    paquete. Igual que en Excel, si filtras solo por DW o solo por BW
+    oculta la columna del otro tipo. Incluye numeración de página y el
+    pie de página "By Gustavo developer" en todas las hojas.
+  - **PDF (tarjetas por paquete)**: en vertical, cada paquete queda como
+    una tarjeta con encabezado de color (mismo color que usa en el
+    Resumen), su cantidad de TAGs y % de entregados, y debajo la tabla de
+    esos TAGs con el estado Entregado resaltado en verde/rojo. Pensado
+    para entregar a cada subcontratista solo lo suyo. También numerado y
+    con el mismo pie de página.
 - **Carga rápida**: la primera vez que alguien entra en un dispositivo, la
   app tarda unos segundos en traer las ~14.400 filas. A partir de ahí,
   guarda una copia en ese navegador y la muestra al instante la próxima vez

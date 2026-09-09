@@ -1,6 +1,6 @@
 {
-  "name": "PLACAS · Control de paquetes",
-  "short_name": "PLACAS",
+  "name": "PLACAS-TAG DW / BW",
+  "short_name": "PLACAS-TAG",
   "description": "Control y clasificación de placas TAG por paquetes PQT DW / PQT BW",
   "start_url": "./index.html",
   "scope": "./",

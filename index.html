@@ -3,24 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PLACAS · Control de paquetes</title>
-<link rel="manifest" href="manifest.json?v=1.6.0">
+<title>PLACAS-TAG DW / BW</title>
+<link rel="manifest" href="manifest.json?v=1.7.0">
 <meta name="theme-color" content="#2563eb">
 <link rel="icon" href="assets/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PLACAS">
+<meta name="apple-mobile-web-app-title" content="PLACAS-TAG DW/BW">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1.6.0">
+<link rel="stylesheet" href="style.css?v=1.7.0">
 </head>
 <body>
 
 <div id="loginScreen" class="login-screen">
   <div class="login-overlay"></div>
   <div class="login-card">
-    <div class="setup-mark">PLACAS</div>
+    <div class="setup-mark">PLACAS-TAG DW / BW</div>
     <h1>Control de paquetes</h1>
     <p>Ingresa la contraseña que te compartieron para entrar. Tu acceso (ver o editar) depende de la contraseña que uses.</p>
     <label for="passwordInput">Contraseña</label>
@@ -41,7 +41,7 @@
 
   <header class="topbar">
     <div class="topbar-left">
-      <span class="logo-mark">PLACAS</span>
+      <span class="logo-mark">PLACAS-TAG DW / BW</span>
       <span class="logo-sub">Control de paquetes</span>
       <span id="roleBadge" class="role-badge">—</span>
     </div>
@@ -128,7 +128,8 @@
         <button id="packageFilterBtn" class="btn-secondary">Paquetes (todos)</button>
         <button id="exportCsvBtn" class="btn-secondary admin-only">Exportar CSV</button>
         <button id="exportExcelBtn" class="btn-secondary admin-only">Exportar Excel</button>
-        <button id="exportPdfBtn" class="btn-secondary">Exportar PDF</button>
+        <button id="exportPdfBtn" class="btn-secondary">PDF (tabla)</button>
+        <button id="exportPdfCardsBtn" class="btn-secondary">PDF (tarjetas por paquete)</button>
       </div>
       <div class="results-count"><span id="resultsCount">0</span> resultados</div>
 
@@ -232,6 +233,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=1.6.0"></script>
+<script src="app.js?v=1.7.0"></script>
 </body>
 </html>
