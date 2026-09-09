@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v2.2.0';
+const APP_VERSION = 'v2.4.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -662,6 +662,8 @@ document.getElementById('nextPageBtn').addEventListener('click', () => {
 const APP_TITLE = 'PLACAS-TAG DW / BW';
 
 const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'ENTREGADO', 'OBS'];
+// El PDF de tabla no incluye ENTREGADO (se pidió quitarlo de los PDF).
+const PDF_TABLE_HEADERS = EXPORT_HEADERS.filter(h => h !== 'ENTREGADO');
 
 function exportRowsAsArrays() {
   return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.ent, row.o]);
@@ -944,50 +946,55 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   showToast(`Importación terminada: ${okCount} TAG(s) actualizados${errCount ? `, ${errCount} con error` : ''}.`, errCount ? 'error' : 'success');
 });
 
-// Si hay un filtro de paquetes activo y el usuario es administrador, ofrece
-// marcar esos TAGs como "Entregado" antes de exportar, y en ese caso genera
-// además un Vale de Entrega numerado. Trabaja sobre una copia (snapshot) de
-// las filas para que el PDF exportado sea siempre consistente, incluso si
-// al marcar "Entregado" alguna fila dejaría de cumplir el filtro actual.
-function maybeConfirmDelivery(rows) {
-  return new Promise((resolve) => {
-    const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
-    const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
+// Botón independiente "Generar Vale de Entrega": ya no se ejecuta al
+// exportar PDF (eso quedaba lento y bloqueaba la exportación). Requiere un
+// filtro de paquetes activo, para saber qué TAGs incluye el vale. Si
+// algunos de esos TAGs todavía no están marcados como entregados, los
+// marca primero; si ya lo estaban todos, genera el vale directo.
+document.getElementById('generateValeBtn').addEventListener('click', () => {
+  const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
+  if (!hasPkgFilter) {
+    showToast('Primero elige uno o varios paquetes (botón "Paquetes" o el filtro rápido DW/BW) para generar el vale.', 'error');
+    return;
+  }
+  const snapshot = state.filtered.map(r => ({ ...r }));
+  openValeModal(snapshot);
+});
 
-    if (state.role !== 'admin' || !hasPkgFilter || pendientes.length === 0) {
-      resolve(rows);
-      return;
-    }
+function openValeModal(rows) {
+  const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
 
-    const modal = document.getElementById('deliveryModal');
-    document.getElementById('deliveryModalSubtitle').textContent =
-      `Vas a exportar ${rows.length} TAG(s). ${pendientes.length} todavía no está(n) marcado(s) como entregado(s).`;
-    document.getElementById('deliveryOrigen').value = localStorage.getItem('placas_almacen_origen') || '';
-    document.getElementById('deliveryDestino').value = localStorage.getItem('placas_almacen_destino') || '';
-    document.getElementById('deliveryEntrego').value = state.userName || '';
-    document.getElementById('deliveryFoto').value = '';
-    modal.classList.remove('hidden');
+  const modal = document.getElementById('deliveryModal');
+  document.getElementById('deliveryModalSubtitle').textContent = pendientes.length > 0
+    ? `Este vale incluirá ${rows.length} TAG(s). ${pendientes.length} todavía no está(n) marcado(s) como entregado(s) — se marcarán al generar el vale.`
+    : `Este vale incluirá ${rows.length} TAG(s), ya marcados como entregados.`;
+  document.getElementById('deliveryOrigen').value = localStorage.getItem('placas_almacen_origen') || '';
+  document.getElementById('deliveryDestino').value = localStorage.getItem('placas_almacen_destino') || '';
+  document.getElementById('deliveryEntrego').value = state.userName || '';
+  document.getElementById('deliveryFoto').value = '';
+  modal.classList.remove('hidden');
 
-    const cleanup = () => {
-      modal.classList.add('hidden');
-      document.getElementById('deliveryOnlyExportBtn').onclick = null;
-      document.getElementById('deliveryConfirmBtn').onclick = null;
-      document.getElementById('deliveryModalCloseBtn').onclick = null;
-    };
+  const cleanup = () => {
+    modal.classList.add('hidden');
+    document.getElementById('deliveryOnlyExportBtn').onclick = null;
+    document.getElementById('deliveryConfirmBtn').onclick = null;
+    document.getElementById('deliveryModalCloseBtn').onclick = null;
+  };
 
-    document.getElementById('deliveryModalCloseBtn').onclick = () => { cleanup(); resolve(rows); };
-    document.getElementById('deliveryOnlyExportBtn').onclick = () => { cleanup(); resolve(rows); };
+  document.getElementById('deliveryModalCloseBtn').onclick = cleanup;
+  document.getElementById('deliveryOnlyExportBtn').onclick = cleanup;
 
-    document.getElementById('deliveryConfirmBtn').onclick = async () => {
-      const origen = document.getElementById('deliveryOrigen').value.trim();
-      const destino = document.getElementById('deliveryDestino').value.trim();
-      const entrego = document.getElementById('deliveryEntrego').value.trim();
-      const fotoFile = document.getElementById('deliveryFoto').files[0] || null;
-      cleanup();
+  document.getElementById('deliveryConfirmBtn').onclick = async () => {
+    const origen = document.getElementById('deliveryOrigen').value.trim();
+    const destino = document.getElementById('deliveryDestino').value.trim();
+    const entrego = document.getElementById('deliveryEntrego').value.trim();
+    const fotoFile = document.getElementById('deliveryFoto').files[0] || null;
+    cleanup();
 
-      localStorage.setItem('placas_almacen_origen', origen);
-      localStorage.setItem('placas_almacen_destino', destino);
+    localStorage.setItem('placas_almacen_origen', origen);
+    localStorage.setItem('placas_almacen_destino', destino);
 
+    if (pendientes.length > 0) {
       showToast(`Marcando ${pendientes.length} TAG(s) como entregado(s)…`, 'success');
       for (const row of pendientes) {
         try {
@@ -1002,22 +1009,20 @@ function maybeConfirmDelivery(rows) {
       saveCache(state.rows);
       renderDashboard();
       applyFilters(); // refresca lo que se ve en pantalla
+    }
 
-      let fotoDataUrl = null;
-      if (fotoFile) {
-        try { fotoDataUrl = await fileToDataUrl(fotoFile); } catch (e) { /* si falla, el vale sale sin foto */ }
-      }
+    let fotoDataUrl = null;
+    if (fotoFile) {
+      try { fotoDataUrl = await fileToDataUrl(fotoFile); } catch (e) { /* si falla, el vale sale sin foto */ }
+    }
 
-      try {
-        await generateValeEntrega(rows, { origen, destino, entrego, fotoDataUrl });
-      } catch (e) {
-        showToast('El vale de entrega no se pudo generar: ' + e.message, 'error');
-      }
-
-      showToast('Listo. Continuando con la exportación…', 'success');
-      resolve(rows);
-    };
-  });
+    try {
+      await generateValeEntrega(rows, { origen, destino, entrego, fotoDataUrl });
+      showToast('Vale de entrega generado.', 'success');
+    } catch (e) {
+      showToast('El vale de entrega no se pudo generar: ' + e.message, 'error');
+    }
+  };
 }
 
 function fileToDataUrl(file) {
@@ -1280,11 +1285,10 @@ function addPdfFooter(doc) {
   }
 }
 
-document.getElementById('exportPdfBtn').addEventListener('click', async () => {
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
 
-  const snapshot = state.filtered.map(r => ({ ...r }));
-  const rows = await maybeConfirmDelivery(snapshot);
+  const rows = state.filtered;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -1302,15 +1306,15 @@ document.getElementById('exportPdfBtn').addEventListener('click', async () => {
   const onlyDW = state.selectedDW.size > 0 && state.selectedBW.size === 0;
   const onlyBW = state.selectedBW.size > 0 && state.selectedDW.size === 0;
 
-  let headers = EXPORT_HEADERS;
-  let rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.ent, row.o];
+  let headers = PDF_TABLE_HEADERS;
+  let rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o];
 
   if (onlyDW) {
-    headers = EXPORT_HEADERS.filter(h => h !== 'PQT BW');
-    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.g, row.ent, row.o];
+    headers = PDF_TABLE_HEADERS.filter(h => h !== 'PQT BW');
+    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.g, row.o];
   } else if (onlyBW) {
-    headers = EXPORT_HEADERS.filter(h => h !== 'PQT DW');
-    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.bw, row.g, row.ent, row.o];
+    headers = PDF_TABLE_HEADERS.filter(h => h !== 'PQT DW');
+    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.bw, row.g, row.o];
   }
 
   const body = sortedRows.map(rowMapper);
@@ -1334,11 +1338,10 @@ document.getElementById('exportPdfBtn').addEventListener('click', async () => {
 
 // PDF en vertical, una "tarjeta" por paquete (encabezado de color + su tabla
 // de TAGs), pensado para entregar el avance por paquete a cada subcontratista.
-document.getElementById('exportPdfCardsBtn').addEventListener('click', async () => {
+document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
 
-  const snapshot = state.filtered.map(r => ({ ...r }));
-  const rows = await maybeConfirmDelivery(snapshot);
+  const rows = state.filtered;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -1380,8 +1383,8 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
   });
 
   let y = 60;
-  const cardHeaders = ['ITEM', 'TAG', 'DISC.', 'SUBCONTRATISTA', 'SISTEMA', 'DESCRIPCIÓN', 'LVL', 'ENTREG.', 'OBS'];
-  const colWidths = [30, 62, 34, 82, 46, 132, 22, 44, 96]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
+  const cardHeaders = ['ITEM', 'TAG', 'DISC.', 'SUBCONTRATISTA', 'SISTEMA', 'DESCRIPCIÓN', 'LVL', 'OBS'];
+  const colWidths = [30, 62, 34, 82, 46, 157, 22, 114]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
 
   groupList.forEach(([key, group]) => {
     const total = group.rows.length;
@@ -1407,11 +1410,7 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
     doc.text(`${total} TAG(s)  ·  ${entregados} entregado(s) (${pct}%)`, pageW - marginX - 8, y + 15, { align: 'right' });
     y += 22;
 
-    const body = group.rows.map(r => [
-      r.i, r.tag, r.dis, r.sub, r.sys, r.desc, r.lvl,
-      String(r.ent).toUpperCase() === 'Y' ? 'Sí' : 'No',
-      r.o
-    ]);
+    const body = group.rows.map(r => [r.i, r.tag, r.dis, r.sub, r.sys, r.desc, r.lvl, r.o]);
 
     doc.autoTable({
       startY: y,
@@ -1424,12 +1423,7 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
       columnStyles: {
         0: { cellWidth: colWidths[0] }, 1: { cellWidth: colWidths[1] }, 2: { cellWidth: colWidths[2] },
         3: { cellWidth: colWidths[3] }, 4: { cellWidth: colWidths[4] }, 5: { cellWidth: colWidths[5] },
-        6: { cellWidth: colWidths[6] }, 7: { cellWidth: colWidths[7] }, 8: { cellWidth: colWidths[8] }
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 7) {
-          data.cell.styles.textColor = data.cell.raw === 'Sí' ? [13, 148, 136] : [220, 38, 38];
-        }
+        6: { cellWidth: colWidths[6] }, 7: { cellWidth: colWidths[7] }
       }
     });
 
