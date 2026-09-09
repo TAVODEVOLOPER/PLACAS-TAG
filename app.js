@@ -24,15 +24,15 @@
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx3hM3kScscjcM6md0Uti3sHyTO6slVGcCWWBn80smizwbwBNS3k3QDxNffbCRenu0/exec'; // ← reemplaza esto
 const PASSWORDS = {
-  admin: 'DRAGADOS-ADMIN',   // ← cambia esta contraseña
-  user: 'DRAGADOS-USER'    // ← cambia esta contraseña
+  admin: 'admin2026',   // ← cambia esta contraseña
+  user: 'placas2026'    // ← cambia esta contraseña
 };
 
 const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -41,7 +41,9 @@ let state = {
   userName: sessionStorage.getItem(STORAGE_KEY_NAME) || '',
   rows: [],
   filtered: [],
-  page: 1
+  page: 1,
+  selectedDW: new Set(),
+  selectedBW: new Set()
 };
 
 // ---------------- Login ----------------
@@ -359,6 +361,45 @@ function populateFilterOptions() {
 
   fillSelect('filterDiscipline', disciplines, 'Disciplina (todas)');
   fillSelect('filterSubcontractor', subs, 'Subcontratista (todos)');
+
+  populatePackagePicker();
+}
+
+function packageCounts(field) {
+  const counts = {};
+  state.rows.forEach(row => {
+    const val = row[field];
+    if (val !== '' && val !== null && val !== undefined) counts[val] = (counts[val] || 0) + 1;
+  });
+  return counts;
+}
+
+function populatePackagePicker() {
+  renderPickerList('pickerDW', packageCounts('dw'), state.selectedDW);
+  renderPickerList('pickerBW', packageCounts('bw'), state.selectedBW);
+}
+
+function renderPickerList(elId, counts, selectedSet) {
+  const el = document.getElementById(elId);
+  const entries = Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0]) || a[0].localeCompare(b[0]));
+  if (entries.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:12px;padding:6px;">Sin paquetes todavía.</p>';
+    return;
+  }
+  el.innerHTML = entries.map(([key, count]) => `
+    <label class="picker-item">
+      <input type="checkbox" value="${escapeHtml(key)}" ${selectedSet.has(key) ? 'checked' : ''}>
+      <span>${escapeHtml(key)}</span>
+      <span class="picker-count">${count}</span>
+    </label>
+  `).join('');
+}
+
+function updatePackageFilterBtnLabel() {
+  const total = state.selectedDW.size + state.selectedBW.size;
+  document.getElementById('packageFilterBtn').textContent = total > 0
+    ? `Paquetes (${total} seleccionados)`
+    : 'Paquetes (todos)';
 }
 
 function fillSelect(id, values, placeholder) {
@@ -366,6 +407,40 @@ function fillSelect(id, values, placeholder) {
   sel.innerHTML = `<option value="">${placeholder}</option>` +
     values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
 }
+
+document.getElementById('packageFilterBtn').addEventListener('click', () => {
+  populatePackagePicker();
+  document.getElementById('packagePickerModal').classList.remove('hidden');
+});
+document.getElementById('packagePickerCloseBtn').addEventListener('click', () => {
+  document.getElementById('packagePickerModal').classList.add('hidden');
+});
+document.getElementById('packagePickerModal').addEventListener('click', (e) => {
+  if (e.target.id === 'packagePickerModal') e.currentTarget.classList.add('hidden');
+});
+
+document.getElementById('pickerApplyBtn').addEventListener('click', () => {
+  state.selectedDW = new Set(
+    [...document.querySelectorAll('#pickerDW input:checked')].map(i => i.value)
+  );
+  state.selectedBW = new Set(
+    [...document.querySelectorAll('#pickerBW input:checked')].map(i => i.value)
+  );
+  updatePackageFilterBtnLabel();
+  document.getElementById('packagePickerModal').classList.add('hidden');
+  state.page = 1;
+  applyFilters();
+});
+
+document.getElementById('pickerClearBtn').addEventListener('click', () => {
+  document.querySelectorAll('#pickerDW input, #pickerBW input').forEach(i => { i.checked = false; });
+  state.selectedDW = new Set();
+  state.selectedBW = new Set();
+  updatePackageFilterBtnLabel();
+  document.getElementById('packagePickerModal').classList.add('hidden');
+  state.page = 1;
+  applyFilters();
+});
 
 ['searchInput', 'filterDiscipline', 'filterSubcontractor', 'filterEstado', 'filterGQE'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => { state.page = 1; applyFilters(); });
@@ -377,6 +452,7 @@ function applyFilters() {
   const sub = document.getElementById('filterSubcontractor').value;
   const estado = document.getElementById('filterEstado').value;
   const gqeFilter = document.getElementById('filterGQE').value;
+  const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
 
   state.filtered = state.rows.filter(row => {
     if (disc && row.dis !== disc) return false;
@@ -389,6 +465,12 @@ function applyFilters() {
     if (estado === 'pendiente' && clasificada) return false;
 
     if (gqeFilter === 'Y' && String(row.g).toUpperCase() !== 'Y') return false;
+
+    if (hasPkgFilter) {
+      const matchesDW = state.selectedDW.size > 0 && hasDW && state.selectedDW.has(String(row.dw));
+      const matchesBW = state.selectedBW.size > 0 && hasBW && state.selectedBW.has(String(row.bw));
+      if (!matchesDW && !matchesBW) return false;
+    }
 
     if (q) {
       const hay = `${row.tag || ''} ${row.sys || ''} ${row.desc || ''}`.toLowerCase();
@@ -556,10 +638,22 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   doc.setTextColor(100);
   doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${state.filtered.length} registro(s)`, 30, 44);
 
+  const sortedRows = [...state.filtered].sort((a, b) => {
+    const keyOf = (r) => {
+      const dw = r.dw !== '' && r.dw !== null && r.dw !== undefined ? Number(r.dw) : null;
+      const bw = r.bw !== '' && r.bw !== null && r.bw !== undefined ? Number(r.bw) : null;
+      if (dw !== null) return dw;
+      if (bw !== null) return bw;
+      return Infinity; // sin paquete: al final
+    };
+    return keyOf(a) - keyOf(b);
+  });
+  const body = sortedRows.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o]);
+
   doc.autoTable({
     startY: 56,
     head: [EXPORT_HEADERS],
-    body: exportRowsAsArrays(),
+    body: body,
     styles: { fontSize: 6.5, cellPadding: 3, overflow: 'linebreak' },
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 246, 250] },

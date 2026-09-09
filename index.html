@@ -6,7 +6,7 @@
 <title>PLACAS · Control de paquetes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=1.3.0">
 </head>
 <body>
 
@@ -123,6 +123,7 @@
           <option value="Y">Creados (Y)</option>
           <option value="">Sin marcar</option>
         </select>
+        <button id="packageFilterBtn" class="btn-secondary">Paquetes (todos)</button>
         <button id="exportCsvBtn" class="btn-secondary admin-only">Exportar CSV</button>
         <button id="exportExcelBtn" class="btn-secondary admin-only">Exportar Excel</button>
         <button id="exportPdfBtn" class="btn-secondary">Exportar PDF</button>
@@ -167,6 +168,32 @@
     <span class="footer-version" id="footerVersionApp"></span>
   </footer>
 
+  <div id="packagePickerModal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-narrow">
+      <div class="modal-header">
+        <div>
+          <h3>Filtrar por paquetes</h3>
+          <p class="modal-subtitle">Elige uno o varios paquetes. Los botones Exportar usarán este mismo filtro.</p>
+        </div>
+        <button id="packagePickerCloseBtn" class="btn-icon" title="Cerrar">✕</button>
+      </div>
+      <div class="picker-columns">
+        <div class="picker-col">
+          <h4>PQT DW</h4>
+          <div id="pickerDW" class="picker-list"></div>
+        </div>
+        <div class="picker-col">
+          <h4>PQT BW</h4>
+          <div id="pickerBW" class="picker-list"></div>
+        </div>
+      </div>
+      <div class="picker-actions">
+        <button id="pickerClearBtn" class="btn-secondary">Limpiar selección</button>
+        <button id="pickerApplyBtn" class="btn-primary picker-apply">Aplicar filtro</button>
+      </div>
+    </div>
+  </div>
+
   <div id="packageModal" class="modal-overlay hidden">
     <div class="modal-box">
       <div class="modal-header">
@@ -201,6 +228,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=1.3.0"></script>
 </body>
 </html>

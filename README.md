@@ -107,15 +107,19 @@ configurar de su parte.
   paquete asignado, con color de rojo → ámbar → teal según el avance).
 - **Clic en un paquete** (PQT DW o BW): abre una ventana con la lista
   completa de TAGs de ese paquete, con su propio buscador.
-- **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE).
-  Los administradores editan `PQT DW`, `PQT BW`, `GQE` y `OBS` en línea, con
-  su propio botón **Guardar** por fila. Los usuarios ven la tabla en modo
-  solo lectura.
+- **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE) y
+  el botón **Paquetes**, que abre una ventana para elegir uno o varios
+  paquetes DW/BW específicos — útil para entregar solo los TAGs de un
+  paquete a un subcontratista. Los administradores editan `PQT DW`,
+  `PQT BW`, `GQE` y `OBS` en línea, con su propio botón **Guardar** por
+  fila. Los usuarios ven la tabla en modo solo lectura.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
   así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
   traer los últimos cambios de tus compañeros.
 - **Exportar**: PDF (todos), y CSV/Excel (solo administradores) — siempre
-  con el filtro que tengas aplicado en ese momento.
+  con los filtros que tengas aplicados en ese momento (incluido el filtro
+  de paquetes). El PDF además ordena las filas por número de paquete de
+  menor a mayor, para que sea fácil de repartir por paquete.
 - **Carga rápida**: la primera vez que alguien entra en un dispositivo, la
   app tarda unos segundos en traer las ~14.400 filas. A partir de ahí,
   guarda una copia en ese navegador y la muestra al instante la próxima vez
@@ -134,9 +138,14 @@ configurar de su parte.
   usuario con el enlace", o que hayas editado `Code.gs` sin crear una nueva
   implementación.
 - El pie de página ("By Gustavo developer" + versión) sale de la constante
-  `APP_VERSION` al principio de `app.js`. Súbela (por ejemplo a `v1.3.0`)
-  cada vez que subas una versión nueva a GitHub, para llevar la cuenta.
-- Si algún navegador quedó "pegado" mostrando una versión vieja de la app
-  después de subir cambios, pide que hagan una recarga forzada
-  (Ctrl+Shift+R en Windows, Cmd+Shift+R en Mac) — a veces el navegador
-  guarda en caché los archivos `style.css` y `app.js` antiguos.
+  `APP_VERSION` al principio de `app.js`.
+- **Muy importante para que los cambios se vean siempre:** `index.html`
+  carga `style.css` y `app.js` con un número de versión al final
+  (`style.css?v=1.3.0`). Los navegadores guardan estos archivos en caché
+  por nombre, así que si subes una versión nueva y no cambias ese número,
+  algunos dispositivos seguirán viendo la versión vieja durante horas o
+  días. **Cada vez que subas cambios de diseño o de lógica**, sube también
+  el número: cambia `APP_VERSION` en `app.js` Y el `?v=...` de las dos
+  líneas correspondientes en `index.html`, todos al mismo valor (por
+  ejemplo `v1.4.0`). Así el navegador sabe que debe descargar la versión
+  nueva sí o sí.
