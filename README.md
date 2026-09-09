@@ -144,10 +144,19 @@ configurar de su parte.
     pie de página "By Gustavo developer" en todas las hojas.
   - **PDF (tarjetas por paquete)**: en vertical, cada paquete queda como
     una tarjeta con encabezado de color (mismo color que usa en el
-    Resumen), su cantidad de TAGs y % de entregados, y debajo la tabla de
-    esos TAGs con el estado Entregado resaltado en verde/rojo. Pensado
-    para entregar a cada subcontratista solo lo suyo. También numerado y
-    con el mismo pie de página.
+    Resumen) y título "PQT {número} DW" o "PQT {número} BW", su cantidad
+    de TAGs y % de entregados, y debajo la tabla de esos TAGs con el
+    estado Entregado resaltado en verde/rojo. Sin filtro de paquetes, solo
+    arma tarjetas DW (las BW quedan ocultas por defecto); si filtras
+    explícitamente por BW, esas sí aparecen. Pensado para entregar a cada
+    subcontratista solo lo suyo. También numerado y con el mismo pie de
+    página.
+  - **Marcar como entregado antes de exportar**: si eres administrador y
+    tienes un filtro de paquetes activo, al pulsar cualquiera de los dos
+    botones de PDF la app pregunta si quieres marcar esos TAGs como
+    "Entregado" antes de generar el archivo — útil para dejar registro de
+    la entrega en el mismo momento en que generas el PDF para el
+    subcontratista.
 - **Carga rápida**: la primera vez que alguien entra en un dispositivo, la
   app tarda unos segundos en traer las ~14.400 filas. A partir de ahí,
   guarda una copia en ese navegador y la muestra al instante la próxima vez

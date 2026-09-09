@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.7.0';
+const APP_VERSION = 'v1.8.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -672,6 +672,42 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   XLSX.writeFile(wb, `placas_export_${todayStr()}.xlsx`);
 });
 
+// Si hay un filtro de paquetes activo y el usuario es administrador, ofrece
+// marcar esos TAGs como "Entregado" antes de exportar. Trabaja sobre una
+// copia (snapshot) de las filas para que el PDF exportado sea siempre
+// consistente, incluso si al marcar "Entregado" alguna fila dejaría de
+// cumplir el filtro actual (ej. filtro "Pendientes de entregar").
+async function maybeConfirmDelivery(rows) {
+  const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
+  if (state.role !== 'admin' || !hasPkgFilter) return rows;
+
+  const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
+  if (pendientes.length === 0) return rows;
+
+  const wantsMark = window.confirm(
+    `Vas a exportar ${rows.length} TAG(s) de el/los paquete(s) filtrado(s).\n\n` +
+    `¿Quieres marcar ${pendientes.length} TAG(s) pendiente(s) como "Entregado" antes de exportar?`
+  );
+  if (!wantsMark) return rows;
+
+  showToast(`Marcando ${pendientes.length} TAG(s) como entregado(s)…`, 'success');
+  for (const row of pendientes) {
+    try {
+      const result = await apiPost({ action: 'updateRow', r: row.r, entregado: 'Y', editor: state.userName });
+      if (result.ok) {
+        row.ent = 'Y';
+        const master = state.rows.find(x => x.r === row.r);
+        if (master) master.ent = 'Y';
+      }
+    } catch (e) { /* seguimos con las demás filas aunque una falle */ }
+  }
+  saveCache(state.rows);
+  renderDashboard();
+  applyFilters(); // refresca lo que se ve en pantalla
+  showToast('Listo. Continuando con la exportación…', 'success');
+  return rows;
+}
+
 // Agrega numeración de páginas y el pie de página en todas las páginas de un PDF ya construido.
 function addPdfFooter(doc) {
   const pageCount = doc.internal.getNumberOfPages();
@@ -686,8 +722,12 @@ function addPdfFooter(doc) {
   }
 }
 
-document.getElementById('exportPdfBtn').addEventListener('click', () => {
+document.getElementById('exportPdfBtn').addEventListener('click', async () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
+
+  const snapshot = state.filtered.map(r => ({ ...r }));
+  const rows = await maybeConfirmDelivery(snapshot);
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
 
@@ -695,9 +735,9 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   doc.text(APP_TITLE, 30, 28);
   doc.setFontSize(9);
   doc.setTextColor(100);
-  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${state.filtered.length} registro(s)`, 30, 44);
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${rows.length} registro(s)`, 30, 44);
 
-  const sortedRows = sortByPackageAsc(state.filtered);
+  const sortedRows = sortByPackageAsc(rows);
 
   // Si el filtro de paquetes solo usa DW o solo BW, no mostramos la otra
   // columna de paquete (queda vacía en todas las filas y solo confunde).
@@ -736,8 +776,12 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 
 // PDF en vertical, una "tarjeta" por paquete (encabezado de color + su tabla
 // de TAGs), pensado para entregar el avance por paquete a cada subcontratista.
-document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
+document.getElementById('exportPdfCardsBtn').addEventListener('click', async () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
+
+  const snapshot = state.filtered.map(r => ({ ...r }));
+  const rows = await maybeConfirmDelivery(snapshot);
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -749,26 +793,32 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
   doc.text(APP_TITLE, marginX, 28);
   doc.setFontSize(9);
   doc.setTextColor(100);
-  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${state.filtered.length} registro(s)`, marginX, 44);
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}  ·  ${rows.length} registro(s)`, marginX, 44);
+
+  // Sin filtro de paquetes activo, solo se arman tarjetas de DW (las de BW
+  // quedan ocultas por defecto). Si se filtra explícitamente por BW (con o
+  // sin DW), sí aparecen sus tarjetas.
+  const includeDW = state.selectedDW.size > 0 || state.selectedBW.size === 0;
+  const includeBW = state.selectedBW.size > 0;
 
   // Agrupar filas por paquete (una fila puede caer en DW y BW a la vez si tiene ambos)
   const groups = {};
-  const pushToGroup = (key, tipo, num, row) => {
-    if (!groups[key]) groups[key] = { tipo, num, rows: [] };
+  const pushToGroup = (key, suffix, num, row) => {
+    if (!groups[key]) groups[key] = { suffix, num, rows: [] };
     groups[key].rows.push(row);
   };
-  state.filtered.forEach(row => {
+  rows.forEach(row => {
     const hasDW = row.dw !== '' && row.dw !== null && row.dw !== undefined;
     const hasBW = row.bw !== '' && row.bw !== null && row.bw !== undefined;
-    if (hasDW) pushToGroup('DW-' + row.dw, 'PQT DW', row.dw, row);
-    if (hasBW) pushToGroup('BW-' + row.bw, 'PQT BW', row.bw, row);
-    if (!hasDW && !hasBW) pushToGroup('SIN', 'Sin paquete asignado', '', row);
+    if (hasDW && includeDW) pushToGroup('DW-' + row.dw, 'DW', row.dw, row);
+    if (hasBW && includeBW) pushToGroup('BW-' + row.bw, 'BW', row.bw, row);
+    if (!hasDW && !hasBW) pushToGroup('SIN', '', '', row);
   });
 
   const groupList = Object.entries(groups).sort((a, b) => {
     const na = a[1].num === '' ? Infinity : Number(a[1].num);
     const nb = b[1].num === '' ? Infinity : Number(b[1].num);
-    return na - nb || a[1].tipo.localeCompare(b[1].tipo);
+    return na - nb || a[1].suffix.localeCompare(b[1].suffix);
   });
 
   let y = 60;
@@ -781,6 +831,8 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
     const pct = total ? Math.round((entregados / total) * 100) : 0;
     const c = chipColorFor(key === 'SIN' ? 'sin' : group.num);
     const rgb = hexToRgb(c.fg);
+    // Ej: "PQT 2 DW". Sin número (grupo "Sin paquete"), usa el texto tal cual.
+    const titleText = group.num !== '' ? `PQT ${group.num} ${group.suffix}` : 'Sin paquete asignado';
 
     // Si no cabe ni el encabezado + una fila en lo que queda de página, saltamos de página.
     if (y + 60 > bottomLimit) { doc.addPage(); y = 40; }
@@ -791,7 +843,7 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
-    doc.text(`${group.tipo}${group.num !== '' ? ' ' + group.num : ''}`, marginX + 8, y + 15);
+    doc.text(titleText, marginX + 8, y + 15);
     doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
     doc.text(`${total} TAG(s)  ·  ${entregados} entregado(s) (${pct}%)`, pageW - marginX - 8, y + 15, { align: 'right' });
