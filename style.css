@@ -498,6 +498,68 @@ td input.gqe-input { width: 34px; text-align: center; text-transform: uppercase;
 
 .picker-apply { margin-top: 0; width: auto; padding: 9px 20px; }
 
+.form-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin: 14px 0 5px;
+}
+.form-label:first-of-type { margin-top: 6px; }
+
+#deliveryModal input[type="text"] { width: 100%; }
+#deliveryModal input[type="file"] {
+  width: 100%;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.delivery-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.delivery-confirm { margin-top: 0; flex: 1; min-width: 200px; }
+
+.modal-box-wide { max-width: 900px; }
+
+.import-summary {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.import-summary b { color: var(--text); }
+
+.import-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.import-conflicts-wrap { max-height: 40vh; }
+
+.decision-toggle { display: flex; gap: 4px; }
+.decision-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text-muted);
+}
+.decision-btn.selected.decision-excel { background: var(--blue); color: #fff; border-color: var(--blue); }
+.decision-btn.selected.decision-current { background: var(--text-muted); color: #fff; border-color: var(--text-muted); }
+
 /* ---------- Footer ---------- */
 .app-footer {
   display: flex;

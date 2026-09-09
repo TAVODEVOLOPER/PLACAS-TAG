@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PLACAS-TAG DW / BW</title>
-<link rel="manifest" href="manifest.json?v=1.9.0">
+<link rel="manifest" href="manifest.json?v=2.2.0">
 <meta name="theme-color" content="#2563eb">
 <link rel="icon" href="assets/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="PLACAS-TAG DW/BW">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1.9.0">
+<link rel="stylesheet" href="style.css?v=2.2.0">
 </head>
 <body>
 
@@ -131,6 +131,7 @@
           <button type="button" class="pkg-quick-btn" data-type="BW">Solo BW</button>
         </div>
         <button id="packageFilterBtn" class="btn-secondary">Paquetes (todos)</button>
+        <button id="importExcelBtn" class="btn-secondary admin-only">Importar Excel</button>
         <button id="exportCsvBtn" class="btn-secondary admin-only">Exportar CSV</button>
         <button id="exportExcelBtn" class="btn-secondary admin-only">Exportar Excel</button>
         <button id="exportPdfBtn" class="btn-secondary">PDF (tabla)</button>
@@ -176,6 +177,80 @@
     <span>By Gustavo developer</span>
     <span class="footer-version" id="footerVersionApp"></span>
   </footer>
+
+  <div id="importModal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <div>
+          <h3>Importar Excel (actualizar PQT DW/BW, GQE, OBS, Entregado)</h3>
+          <p class="modal-subtitle">Solo actualiza TAGs que ya existen, buscándolos por su código TAG. No crea TAGs nuevos ni toca los demás datos.</p>
+        </div>
+        <button id="importModalCloseBtn" class="btn-icon" title="Cerrar">✕</button>
+      </div>
+
+      <div id="importStepFile">
+        <label class="form-label">Archivo Excel (.xlsx, .xls o .xlsm)</label>
+        <input id="importFileInput" type="file" accept=".xlsx,.xls,.xlsm">
+        <div class="delivery-actions">
+          <button id="importAnalyzeBtn" class="btn-primary delivery-confirm">Analizar archivo</button>
+        </div>
+      </div>
+
+      <div id="importStepReview" class="hidden">
+        <div id="importSummary" class="import-summary"></div>
+
+        <div id="importConflictsWrap" class="hidden">
+          <div class="import-bulk-actions">
+            <span>Conflictos por decidir:</span>
+            <button id="conflictsAllExcelBtn" class="btn-secondary">Usar Excel en todos</button>
+            <button id="conflictsAllCurrentBtn" class="btn-secondary">Mantener actual en todos</button>
+          </div>
+          <div class="table-wrap import-conflicts-wrap">
+            <table>
+              <thead>
+                <tr><th>TAG</th><th>Campo</th><th>Valor actual</th><th>Valor en Excel</th><th>Decisión</th></tr>
+              </thead>
+              <tbody id="importConflictsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="delivery-actions">
+          <button id="importCancelBtn" class="btn-secondary">Cancelar</button>
+          <button id="importApplyBtn" class="btn-primary delivery-confirm">Aplicar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="deliveryModal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-narrow">
+      <div class="modal-header">
+        <div>
+          <h3>Marcar como entregado</h3>
+          <p class="modal-subtitle" id="deliveryModalSubtitle"></p>
+        </div>
+        <button id="deliveryModalCloseBtn" class="btn-icon" title="Cerrar">✕</button>
+      </div>
+
+      <label class="form-label">Almacén de origen</label>
+      <input id="deliveryOrigen" type="text" class="search-input" placeholder="Ej. Almacén Central">
+
+      <label class="form-label">Almacén de destino</label>
+      <input id="deliveryDestino" type="text" class="search-input" placeholder="Ej. Sitio de instalación / Subcontratista">
+
+      <label class="form-label">Entregó (nombre)</label>
+      <input id="deliveryEntrego" type="text" class="search-input" placeholder="Nombre de quien despacha">
+
+      <label class="form-label">Foto (opcional)</label>
+      <input id="deliveryFoto" type="file" accept="image/*" capture="environment">
+
+      <div class="delivery-actions">
+        <button id="deliveryOnlyExportBtn" class="btn-secondary">Solo exportar (sin marcar)</button>
+        <button id="deliveryConfirmBtn" class="btn-primary delivery-confirm">Marcar entregado y generar vale</button>
+      </div>
+    </div>
+  </div>
 
   <div id="packagePickerModal" class="modal-overlay hidden">
     <div class="modal-box modal-box-narrow">
@@ -238,6 +313,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=1.9.0"></script>
+<script src="app.js?v=2.2.0"></script>
 </body>
 </html>

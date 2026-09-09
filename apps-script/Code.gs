@@ -46,12 +46,13 @@ function jsonOut_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET: ?action=getData | getSummary */
+/** GET: ?action=getData | getSummary | nextValeNumber */
 function doGet(e) {
   try {
     const action = (e.parameter.action || 'getData');
     if (action === 'getData') return jsonOut_(getData_());
     if (action === 'getSummary') return jsonOut_(getSummary_());
+    if (action === 'nextValeNumber') return jsonOut_(getNextValeNumber_());
     return jsonOut_({ ok: false, error: 'Acción desconocida: ' + action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
@@ -144,6 +145,26 @@ function getSummary_() {
   });
 
   return { ok: true, summary: summary, generatedAt: new Date().toISOString() };
+}
+
+/**
+ * Folio correlativo para los "Vale de entrega" (independiente de la hoja,
+ * guardado como propiedad del script). Cada llamada devuelve el siguiente
+ * número y lo deja guardado, protegido con un bloqueo para que dos
+ * personas exportando un vale al mismo tiempo no reciban el mismo número.
+ */
+function getNextValeNumber_() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const props = PropertiesService.getScriptProperties();
+    let n = parseInt(props.getProperty('VALE_COUNTER') || '0', 10);
+    n += 1;
+    props.setProperty('VALE_COUNTER', String(n));
+    return { ok: true, number: n };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** Actualiza PQT DW / PQT BW / GQE / OBS / ENTREGADO de una fila, localizándola por ITEM. */

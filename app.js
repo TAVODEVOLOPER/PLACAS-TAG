@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.9.0';
+const APP_VERSION = 'v2.2.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -459,6 +459,9 @@ document.getElementById('packagePickerCloseBtn').addEventListener('click', () =>
 document.getElementById('packagePickerModal').addEventListener('click', (e) => {
   if (e.target.id === 'packagePickerModal') e.currentTarget.classList.add('hidden');
 });
+document.getElementById('deliveryModal').addEventListener('click', (e) => {
+  if (e.target.id === 'deliveryModal') document.getElementById('deliveryModalCloseBtn').click();
+});
 
 document.getElementById('pickerApplyBtn').addEventListener('click', () => {
   state.selectedDW = new Set(
@@ -713,40 +716,554 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   XLSX.writeFile(wb, `placas_export_${todayStr()}.xlsx`);
 });
 
-// Si hay un filtro de paquetes activo y el usuario es administrador, ofrece
-// marcar esos TAGs como "Entregado" antes de exportar. Trabaja sobre una
-// copia (snapshot) de las filas para que el PDF exportado sea siempre
-// consistente, incluso si al marcar "Entregado" alguna fila dejaría de
-// cumplir el filtro actual (ej. filtro "Pendientes de entregar").
-async function maybeConfirmDelivery(rows) {
-  const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
-  if (state.role !== 'admin' || !hasPkgFilter) return rows;
+// ---------------- Importar Excel (actualizar PQT DW/BW, GQE, OBS, Entregado) ----------------
+// Solo actualiza TAGs que YA existen en la hoja (los busca por su código
+// TAG). No crea filas nuevas ni toca ITEM/INSTALL/DISCIPLINE/etc. Si un
+// campo ya tenía un valor distinto al del Excel, pide decidir caso por
+// caso; si el campo estaba vacío, lo rellena directamente sin preguntar.
 
-  const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
-  if (pendientes.length === 0) return rows;
+const IMPORT_FIELD_MAP = [
+  { header: 'PQT DW', field: 'dw', apiKey: 'pqtDW', label: 'PQT DW' },
+  { header: 'PQT BW', field: 'bw', apiKey: 'pqtBW', label: 'PQT BW' },
+  { header: 'GQE', field: 'g', apiKey: 'gqe', label: 'GQE' },
+  { header: 'ENTREGADO', field: 'ent', apiKey: 'entregado', label: 'ENTREGADO' },
+  { header: 'OBS', field: 'o', apiKey: 'obs', label: 'OBS' }
+];
 
-  const wantsMark = window.confirm(
-    `Vas a exportar ${rows.length} TAG(s) de el/los paquete(s) filtrado(s).\n\n` +
-    `¿Quieres marcar ${pendientes.length} TAG(s) pendiente(s) como "Entregado" antes de exportar?`
-  );
-  if (!wantsMark) return rows;
+let importAnalysis = null;
 
-  showToast(`Marcando ${pendientes.length} TAG(s) como entregado(s)…`, 'success');
-  for (const row of pendientes) {
-    try {
-      const result = await apiPost({ action: 'updateRow', r: row.r, entregado: 'Y', editor: state.userName });
-      if (result.ok) {
-        row.ent = 'Y';
-        const master = state.rows.find(x => x.r === row.r);
-        if (master) master.ent = 'Y';
-      }
-    } catch (e) { /* seguimos con las demás filas aunque una falle */ }
+document.getElementById('importExcelBtn').addEventListener('click', () => {
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importStepFile').classList.remove('hidden');
+  document.getElementById('importStepReview').classList.add('hidden');
+  document.getElementById('importModal').classList.remove('hidden');
+});
+document.getElementById('importModalCloseBtn').addEventListener('click', () => {
+  document.getElementById('importModal').classList.add('hidden');
+});
+document.getElementById('importModal').addEventListener('click', (e) => {
+  if (e.target.id === 'importModal') document.getElementById('importModal').classList.add('hidden');
+});
+document.getElementById('importCancelBtn').addEventListener('click', () => {
+  document.getElementById('importModal').classList.add('hidden');
+});
+
+document.getElementById('importAnalyzeBtn').addEventListener('click', async () => {
+  const file = document.getElementById('importFileInput').files[0];
+  if (!file) { showToast('Elige un archivo Excel primero.', 'error'); return; }
+  if (typeof XLSX === 'undefined') { showToast('No se pudo cargar el módulo de Excel. Revisa tu conexión.', 'error'); return; }
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+    if (aoa.length < 2) { showToast('El archivo no tiene filas de datos.', 'error'); return; }
+
+    const headerRow = aoa[0].map(h => String(h).trim().toUpperCase());
+    const tagIdx = headerRow.indexOf('TAG');
+    if (tagIdx === -1) { showToast('No encontré la columna TAG en la primera fila del archivo.', 'error'); return; }
+
+    const fieldIdx = {};
+    IMPORT_FIELD_MAP.forEach(f => {
+      const idx = headerRow.indexOf(f.header);
+      if (idx !== -1) fieldIdx[f.field] = idx;
+    });
+    if (Object.keys(fieldIdx).length === 0) {
+      showToast('No encontré ninguna columna PQT DW, PQT BW, GQE, OBS o ENTREGADO en el archivo.', 'error');
+      return;
+    }
+
+    importAnalysis = analyzeImport(aoa.slice(1), tagIdx, fieldIdx);
+    renderImportReview(importAnalysis);
+    document.getElementById('importStepFile').classList.add('hidden');
+    document.getElementById('importStepReview').classList.remove('hidden');
+  } catch (e) {
+    showToast('No se pudo leer el archivo: ' + e.message, 'error');
   }
+});
+
+function normVal(v) {
+  return (v === null || v === undefined) ? '' : String(v).trim();
+}
+
+function analyzeImport(dataRows, tagIdx, fieldIdx) {
+  // TAG -> filas vivas que lo tienen (para detectar duplicados en la hoja actual)
+  const byTag = {};
+  state.rows.forEach(row => {
+    const t = normVal(row.tag);
+    if (!t) return;
+    (byTag[t] = byTag[t] || []).push(row);
+  });
+
+  const autoApply = [];
+  const conflicts = [];
+  const notFound = [];
+  const duplicates = [];
+  let totalExcelRows = 0;
+
+  dataRows.forEach(r => {
+    const tag = normVal(r[tagIdx]);
+    if (!tag) return;
+    totalExcelRows++;
+
+    const matches = byTag[tag];
+    if (!matches || matches.length === 0) { notFound.push(tag); return; }
+    if (matches.length > 1) { duplicates.push(tag); return; }
+    const row = matches[0];
+
+    IMPORT_FIELD_MAP.forEach(f => {
+      if (fieldIdx[f.field] === undefined) return; // esa columna no vino en el excel
+      const excelValRaw = r[fieldIdx[f.field]];
+      const excelVal = normVal(excelValRaw);
+      if (!excelVal) return; // celda vacía en excel = no tocar ese campo
+
+      const currentVal = normVal(row[f.field]);
+      const isFlag = f.field === 'g' || f.field === 'ent';
+      const excelCmp = isFlag ? excelVal.toUpperCase() : excelVal;
+      const currentCmp = isFlag ? currentVal.toUpperCase() : currentVal;
+
+      if (excelCmp === currentCmp) return; // sin cambios reales
+
+      if (!currentVal) {
+        autoApply.push({ row, field: f.field, apiKey: f.apiKey, newVal: excelValRaw, label: f.label });
+      } else {
+        conflicts.push({ row, field: f.field, apiKey: f.apiKey, label: f.label, currentVal, excelVal: excelValRaw, decision: 'excel' });
+      }
+    });
+  });
+
+  return { autoApply, conflicts, notFound, duplicates, totalExcelRows };
+}
+
+function renderImportReview(analysis) {
+  const summary = document.getElementById('importSummary');
+  summary.innerHTML = `
+    <div>TAGs leídos del Excel: <b>${analysis.totalExcelRows}</b></div>
+    <div>Cambios que se aplicarán automáticamente (el campo estaba vacío): <b>${analysis.autoApply.length}</b></div>
+    <div>Conflictos que requieren tu decisión (ya había un valor distinto): <b>${analysis.conflicts.length}</b></div>
+    ${analysis.notFound.length ? `<div>TAGs no encontrados en tu Sheet (se omiten): <b>${analysis.notFound.length}</b></div>` : ''}
+    ${analysis.duplicates.length ? `<div>TAGs duplicados en tu Sheet (se omiten, revísalos manualmente en la Tabla): <b>${analysis.duplicates.length}</b></div>` : ''}
+  `;
+
+  const wrap = document.getElementById('importConflictsWrap');
+  if (analysis.conflicts.length === 0) {
+    wrap.classList.add('hidden');
+  } else {
+    wrap.classList.remove('hidden');
+    renderConflictsTable(analysis.conflicts);
+  }
+}
+
+function renderConflictsTable(conflicts) {
+  const tbody = document.getElementById('importConflictsBody');
+  tbody.innerHTML = conflicts.map((c, idx) => `
+    <tr data-idx="${idx}">
+      <td class="tag-cell">${escapeHtml(c.row.tag)}</td>
+      <td>${escapeHtml(c.label)}</td>
+      <td>${escapeHtml(c.currentVal)}</td>
+      <td>${escapeHtml(c.excelVal)}</td>
+      <td>
+        <div class="decision-toggle">
+          <button type="button" class="decision-btn decision-excel ${c.decision === 'excel' ? 'selected' : ''}" data-value="excel">Usar Excel</button>
+          <button type="button" class="decision-btn decision-current ${c.decision === 'current' ? 'selected' : ''}" data-value="current">Mantener actual</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.decision-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tr = btn.closest('tr');
+      const idx = Number(tr.dataset.idx);
+      importAnalysis.conflicts[idx].decision = btn.dataset.value;
+      tr.querySelectorAll('.decision-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+}
+
+document.getElementById('conflictsAllExcelBtn').addEventListener('click', () => {
+  importAnalysis.conflicts.forEach(c => c.decision = 'excel');
+  renderConflictsTable(importAnalysis.conflicts);
+});
+document.getElementById('conflictsAllCurrentBtn').addEventListener('click', () => {
+  importAnalysis.conflicts.forEach(c => c.decision = 'current');
+  renderConflictsTable(importAnalysis.conflicts);
+});
+
+document.getElementById('importApplyBtn').addEventListener('click', async () => {
+  if (!importAnalysis) return;
+  const changesByRow = new Map();
+
+  importAnalysis.autoApply.forEach(c => {
+    const entry = changesByRow.get(c.row.r) || { row: c.row, fields: {} };
+    entry.fields[c.apiKey] = c.newVal;
+    changesByRow.set(c.row.r, entry);
+  });
+  importAnalysis.conflicts.forEach(c => {
+    if (c.decision !== 'excel') return;
+    const entry = changesByRow.get(c.row.r) || { row: c.row, fields: {} };
+    entry.fields[c.apiKey] = c.excelVal;
+    changesByRow.set(c.row.r, entry);
+  });
+
+  const entries = [...changesByRow.values()];
+  document.getElementById('importModal').classList.add('hidden');
+
+  if (entries.length === 0) {
+    showToast('No hay cambios para aplicar.', 'error');
+    importAnalysis = null;
+    return;
+  }
+
+  showToast(`Aplicando cambios a ${entries.length} TAG(s)…`, 'success');
+
+  let okCount = 0, errCount = 0;
+  for (const entry of entries) {
+    try {
+      const payload = Object.assign({ action: 'updateRow', r: entry.row.r, editor: state.userName }, entry.fields);
+      const result = await apiPost(payload);
+      if (result.ok) {
+        Object.keys(entry.fields).forEach(apiKey => {
+          const map = IMPORT_FIELD_MAP.find(f => f.apiKey === apiKey);
+          if (map) entry.row[map.field] = entry.fields[apiKey];
+        });
+        okCount++;
+      } else {
+        errCount++;
+      }
+    } catch (e) { errCount++; }
+  }
+
   saveCache(state.rows);
   renderDashboard();
-  applyFilters(); // refresca lo que se ve en pantalla
-  showToast('Listo. Continuando con la exportación…', 'success');
-  return rows;
+  applyFilters();
+  importAnalysis = null;
+
+  showToast(`Importación terminada: ${okCount} TAG(s) actualizados${errCount ? `, ${errCount} con error` : ''}.`, errCount ? 'error' : 'success');
+});
+
+// Si hay un filtro de paquetes activo y el usuario es administrador, ofrece
+// marcar esos TAGs como "Entregado" antes de exportar, y en ese caso genera
+// además un Vale de Entrega numerado. Trabaja sobre una copia (snapshot) de
+// las filas para que el PDF exportado sea siempre consistente, incluso si
+// al marcar "Entregado" alguna fila dejaría de cumplir el filtro actual.
+function maybeConfirmDelivery(rows) {
+  return new Promise((resolve) => {
+    const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
+    const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
+
+    if (state.role !== 'admin' || !hasPkgFilter || pendientes.length === 0) {
+      resolve(rows);
+      return;
+    }
+
+    const modal = document.getElementById('deliveryModal');
+    document.getElementById('deliveryModalSubtitle').textContent =
+      `Vas a exportar ${rows.length} TAG(s). ${pendientes.length} todavía no está(n) marcado(s) como entregado(s).`;
+    document.getElementById('deliveryOrigen').value = localStorage.getItem('placas_almacen_origen') || '';
+    document.getElementById('deliveryDestino').value = localStorage.getItem('placas_almacen_destino') || '';
+    document.getElementById('deliveryEntrego').value = state.userName || '';
+    document.getElementById('deliveryFoto').value = '';
+    modal.classList.remove('hidden');
+
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      document.getElementById('deliveryOnlyExportBtn').onclick = null;
+      document.getElementById('deliveryConfirmBtn').onclick = null;
+      document.getElementById('deliveryModalCloseBtn').onclick = null;
+    };
+
+    document.getElementById('deliveryModalCloseBtn').onclick = () => { cleanup(); resolve(rows); };
+    document.getElementById('deliveryOnlyExportBtn').onclick = () => { cleanup(); resolve(rows); };
+
+    document.getElementById('deliveryConfirmBtn').onclick = async () => {
+      const origen = document.getElementById('deliveryOrigen').value.trim();
+      const destino = document.getElementById('deliveryDestino').value.trim();
+      const entrego = document.getElementById('deliveryEntrego').value.trim();
+      const fotoFile = document.getElementById('deliveryFoto').files[0] || null;
+      cleanup();
+
+      localStorage.setItem('placas_almacen_origen', origen);
+      localStorage.setItem('placas_almacen_destino', destino);
+
+      showToast(`Marcando ${pendientes.length} TAG(s) como entregado(s)…`, 'success');
+      for (const row of pendientes) {
+        try {
+          const result = await apiPost({ action: 'updateRow', r: row.r, entregado: 'Y', editor: state.userName });
+          if (result.ok) {
+            row.ent = 'Y';
+            const master = state.rows.find(x => x.r === row.r);
+            if (master) master.ent = 'Y';
+          }
+        } catch (e) { /* seguimos con las demás filas aunque una falle */ }
+      }
+      saveCache(state.rows);
+      renderDashboard();
+      applyFilters(); // refresca lo que se ve en pantalla
+
+      let fotoDataUrl = null;
+      if (fotoFile) {
+        try { fotoDataUrl = await fileToDataUrl(fotoFile); } catch (e) { /* si falla, el vale sale sin foto */ }
+      }
+
+      try {
+        await generateValeEntrega(rows, { origen, destino, entrego, fotoDataUrl });
+      } catch (e) {
+        showToast('El vale de entrega no se pudo generar: ' + e.message, 'error');
+      }
+
+      showToast('Listo. Continuando con la exportación…', 'success');
+      resolve(rows);
+    };
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function apiGetNextValeNumber() {
+  try {
+    const data = await apiGet('nextValeNumber');
+    if (data.ok) return { number: data.number, local: false };
+  } catch (e) { /* seguimos al respaldo local */ }
+  // Respaldo si no hay conexión: numeración local (no correlativa entre dispositivos).
+  const key = 'placas_vale_local_counter';
+  const n = (parseInt(localStorage.getItem(key) || '0', 10)) + 1;
+  localStorage.setItem(key, String(n));
+  return { number: n, local: true };
+}
+
+// Genera el PDF "Vale de Entrega" con el diseño de marca: banda de
+// encabezado azul marino, tarjetas de almacén con acento de color, tabla
+// de paquetes con columna TIPO y barra de total en naranja, foto opcional
+// (la sección se omite por completo si no hay foto), y los bloques de
+// firma de quien entrega (origen) y quien recibe (destino).
+async function generateValeEntrega(rows, meta) {
+  if (typeof window.jspdf === 'undefined') { showToast('No se pudo generar el vale: falta el módulo de PDF.', 'error'); return; }
+  const { number, local } = await apiGetNextValeNumber();
+  const folio = (local ? 'L-' : 'V-') + String(number).padStart(6, '0');
+
+  const NAVY = [22, 50, 74];
+  const ORANGE = [194, 103, 10];
+  const BLUE = [37, 99, 235];
+  const TEXT = [27, 36, 48];
+  const MUTED = [102, 112, 133];
+  const BORDER = [216, 222, 230];
+  const LIGHT = [244, 246, 250];
+  const ORANGE_LIGHT = [240, 178, 122];
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 32;
+
+  // ---------- Banda de encabezado ----------
+  const headerH = 108;
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, pageW, headerH, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(17);
+  doc.setFont(undefined, 'bold');
+  doc.text('VALE DE ENTREGA', marginX, 38);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(201, 214, 228);
+  doc.text('PLACAS-TAG DW / BW', marginX, 54);
+  doc.text('Control de material — Traspaso entre almacenes', marginX, 68);
+
+  const sepX = pageW - 168;
+  doc.setDrawColor(...ORANGE);
+  doc.setLineWidth(3);
+  doc.line(sepX, 20, sepX, 88);
+
+  const fx = sepX + 20;
+  doc.setFontSize(7.5);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...ORANGE_LIGHT);
+  doc.text('FOLIO', fx, 26);
+  doc.setFontSize(19);
+  doc.setTextColor(255, 255, 255);
+  doc.text(folio, fx, 46);
+  doc.setFontSize(7.5);
+  doc.setTextColor(...ORANGE_LIGHT);
+  doc.text('GENERADO', fx, 64);
+  doc.setFontSize(9.5);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(255, 255, 255);
+  const now = new Date();
+  doc.text(`${now.toLocaleDateString('es-ES')} · ${now.toLocaleTimeString('es-ES')}`, fx, 78);
+
+  let y = headerH + 28;
+
+  // ---------- Tarjetas de almacén origen / destino ----------
+  const cardW = (pageW - marginX * 2 - 20) / 2;
+  const cardH = 62;
+
+  function infoCard(x, accent, label, main) {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(...BORDER);
+    doc.roundedRect(x, y, cardW, cardH, 6, 6, 'FD');
+    doc.setFillColor(...accent);
+    doc.roundedRect(x, y, cardW, 4, 2, 2, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...MUTED);
+    doc.text(label, x + 14, y + 22);
+    doc.setFontSize(12);
+    doc.setTextColor(...TEXT);
+    doc.text(main || '—', x + 14, y + 38);
+  }
+
+  infoCard(marginX, BLUE, 'ALMACÉN DE ORIGEN', meta.origen);
+  infoCard(marginX + cardW + 20, ORANGE, 'ALMACÉN DE DESTINO', meta.destino);
+
+  y += cardH + 34;
+
+  // ---------- Resumen de paquetes ----------
+  const groups = {};
+  rows.forEach(row => {
+    const hasDW = row.dw !== '' && row.dw !== null && row.dw !== undefined;
+    const hasBW = row.bw !== '' && row.bw !== null && row.bw !== undefined;
+    if (hasDW) { const k = 'DW-' + row.dw; groups[k] = groups[k] || { label: `PQT ${row.dw} DW`, tipo: 'DW', num: row.dw, count: 0 }; groups[k].count++; }
+    if (hasBW) { const k = 'BW-' + row.bw; groups[k] = groups[k] || { label: `PQT ${row.bw} BW`, tipo: 'BW', num: row.bw, count: 0 }; groups[k].count++; }
+    if (!hasDW && !hasBW) { groups['SIN'] = groups['SIN'] || { label: 'Sin paquete asignado', tipo: '—', num: Infinity, count: 0 }; groups['SIN'].count++; }
+  });
+  const groupList = Object.values(groups).sort((a, b) => Number(a.num) - Number(b.num));
+
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...TEXT);
+  doc.text('RESUMEN DE PAQUETES', marginX, y);
+  doc.setFontSize(9.5);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(`${groupList.length} paquete${groupList.length === 1 ? '' : 's'}`, pageW - marginX, y, { align: 'right' });
+  y += 14;
+
+  doc.autoTable({
+    startY: y,
+    head: [['PAQUETE', 'TIPO', 'CANTIDAD DE TAGS']],
+    body: groupList.map(g => [g.label, g.tipo, String(g.count)]),
+    foot: [[
+      { content: 'TOTAL ENTREGADO', colSpan: 2 },
+      { content: String(rows.length) }
+    ]],
+    styles: { fontSize: 9.5, cellPadding: 8, textColor: TEXT },
+    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+    columnStyles: { 0: { fontStyle: 'bold' }, 1: { textColor: MUTED }, 2: { halign: 'right', fontStyle: 'bold' } },
+    alternateRowStyles: { fillColor: LIGHT },
+    footStyles: { fillColor: ORANGE, textColor: 255, fontStyle: 'bold', fontSize: 10.5 },
+    margin: { left: marginX, right: marginX },
+    tableWidth: pageW - marginX * 2
+  });
+
+  y = doc.lastAutoTable.finalY + 26;
+
+  // ---------- Evidencia fotográfica (se omite por completo si no hay foto) ----------
+  if (meta.fotoDataUrl) {
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...TEXT);
+    doc.text('EVIDENCIA FOTOGRÁFICA', marginX, y);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(1.5);
+    doc.line(marginX, y + 4, marginX + 120, y + 4);
+    y += 16;
+
+    const boxW = pageW - marginX * 2;
+    const boxH = 190;
+    doc.setFillColor(...LIGHT);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(1);
+    doc.roundedRect(marginX, y, boxW, boxH, 6, 6, 'FD');
+
+    try {
+      const dims = await getImageDimensions(meta.fotoDataUrl);
+      const pad = 10;
+      const maxW = boxW - pad * 2, maxH = boxH - pad * 2;
+      const scale = Math.min(maxW / dims.width, maxH / dims.height, 1);
+      const w = dims.width * scale, h = dims.height * scale;
+      doc.addImage(meta.fotoDataUrl, 'JPEG', marginX + (boxW - w) / 2, y + (boxH - h) / 2, w, h);
+    } catch (e) { /* si la imagen falla, dejamos el recuadro vacío */ }
+
+    y += boxH + 30;
+  } else {
+    y += 6;
+  }
+
+  // ---------- Firmas: Entregó (origen) / Recibió (destino) ----------
+  const sigW = (pageW - marginX * 2 - 24) / 2;
+  if (y + 130 > pageH - 40) { doc.addPage(); y = 40; }
+
+  function signatureBlock(x, accent, title, nombre) {
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...accent);
+    doc.text(title, x, y);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text('Nombre y firma del encargado', x, y + 13);
+
+    const ny = y + 48;
+    doc.setFontSize(9);
+    doc.setTextColor(...TEXT);
+    doc.text('Nombre:', x, ny);
+    if (nombre) { doc.setFont(undefined, 'bold'); doc.text(nombre, x + 42, ny); doc.setFont(undefined, 'normal'); }
+    doc.setDrawColor(180, 188, 199);
+    doc.setLineWidth(0.75);
+    doc.line(x, ny + 6, x + sigW, ny + 6);
+
+    const fy = ny + 34;
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text('FIRMA', x, fy);
+    doc.line(x, fy + 16, x + sigW, fy + 16);
+  }
+
+  signatureBlock(marginX, BLUE, 'ENTREGÓ – ALMACÉN DE ORIGEN', meta.entrego);
+  signatureBlock(marginX + sigW + 24, ORANGE, 'RECIBIÓ – ALMACÉN DE DESTINO', '');
+
+  addValeFooter(doc, folio);
+  doc.save(`vale_entrega_${folio}.pdf`);
+}
+
+// Pie de página específico del Vale de Entrega (folio + numeración + crédito).
+function addValeFooter(doc, folio) {
+  const pageCount = doc.internal.getNumberOfPages();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 32;
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(216, 222, 230);
+    doc.setLineWidth(0.5);
+    doc.line(marginX, pageH - 32, pageW - marginX, pageH - 32);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(102, 112, 133);
+    doc.text(`Vale de entrega ${folio} · ${APP_TITLE}`, marginX, pageH - 18);
+    doc.text(`By Gustavo developer · Página ${i} de ${pageCount}`, pageW - marginX, pageH - 18, { align: 'right' });
+  }
+}
+
+function getImageDimensions(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
 }
 
 // Agrega numeración de páginas y el pie de página en todas las páginas de un PDF ya construido.

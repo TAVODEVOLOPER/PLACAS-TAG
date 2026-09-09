@@ -91,6 +91,13 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 ## 4. Sube la app a GitHub
 
 > ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
+> nuevo (agrega el contador de folios para el Vale de Entrega) y pégalo en
+> tu Apps Script, reemplazando todo el contenido anterior. Luego
+> **Implementar > Gestionar implementaciones > ✏️ (editar) > Versión:
+> Nueva versión > Implementar** — si solo guardas el script sin crear una
+> nueva versión, el botón de generar el Vale de Entrega no va a funcionar.
+
+> ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
 > nuevo (agregó la columna `ENTREGADO`) y pégalo en tu Apps Script,
 > reemplazando todo el contenido anterior. Luego **Implementar > Gestionar
 > implementaciones > ✏️ (editar) > Versión: Nueva versión > Implementar**
@@ -131,6 +138,29 @@ configurar de su parte.
   fila (marca `Y` en Entregado cuando la placa ya se entregó al
   subcontratista — útil porque las entregas se hacen por partes). Los
   usuarios ven la tabla en modo solo lectura.
+- **Importar Excel** (solo administradores): para cuando prefieres llenar
+  `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO` u `OBS` en tu propio Excel (por
+  ejemplo tu archivo original con macros, porque ahí escribes más rápido) y
+  después traer esos cambios a la app de una sola vez:
+  1. Botón **"Importar Excel"** > elige el archivo (`.xlsx`, `.xls` o
+     `.xlsm`) > **"Analizar archivo"**.
+  2. La app busca cada fila por su **TAG** (no por ITEM) y compara
+     `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO` y `OBS` contra lo que ya está
+     guardado:
+     - Si el campo estaba **vacío** en tu Sheet, lo rellena directo, sin
+       preguntar.
+     - Si el campo **ya tenía un valor distinto**, lo lista como
+       conflicto para que decidas, fila por fila o con los botones
+       "Usar Excel en todos" / "Mantener actual en todos".
+     - Los TAGs del Excel que no existen en tu Sheet, o que están
+       duplicados en tu Sheet, se omiten y se informan en el resumen (no
+       crea TAGs nuevos ni adivina cuál actualizar si hay duplicados).
+  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet.
+
+  Tu Excel de importación necesita al menos las columnas `TAG` y una o más
+  de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO`, `OBS` con esos nombres exactos
+  en la primera fila — el resto de columnas (ITEM, INSTALL, DISCIPLINE...)
+  pueden estar o no, la app las ignora para esta importación.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
   así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
   traer los últimos cambios de tus compañeros.
@@ -153,12 +183,24 @@ configurar de su parte.
     explícitamente por BW, esas sí aparecen. Pensado para entregar a cada
     subcontratista solo lo suyo. También numerado y con el mismo pie de
     página.
-  - **Marcar como entregado antes de exportar**: si eres administrador y
-    tienes un filtro de paquetes activo, al pulsar cualquiera de los dos
-    botones de PDF la app pregunta si quieres marcar esos TAGs como
-    "Entregado" antes de generar el archivo — útil para dejar registro de
-    la entrega en el mismo momento en que generas el PDF para el
-    subcontratista.
+  - **Marcar como entregado y Vale de Entrega**: si eres administrador y
+    tienes un filtro de paquetes activo con TAGs pendientes de entregar, al
+    pulsar cualquiera de los dos botones de PDF aparece una ventana para
+    completar **Almacén de origen**, **Almacén de destino**, **quién
+    entrega**, y opcionalmente una **foto**. Si confirmas, la app marca
+    esos TAGs como entregados en tu Sheet y descarga dos archivos: el PDF
+    que pediste (tabla o tarjetas) y un **Vale de Entrega** aparte, con:
+    - Folio correlativo (numeración única server-side, no se repite aunque
+      varias personas generen vales desde dispositivos distintos).
+    - Fecha y hora, almacén de origen y destino.
+    - Resumen de paquetes incluidos (paquete y cantidad de TAGs).
+    - La foto adjunta, si la agregaste.
+    - Los bloques **"Entregó (Almacén de Origen)"** y **"Recibió (Almacén
+      de Destino)"** con líneas para nombre y firma a mano tras imprimir.
+
+    Si prefieres solo exportar sin marcar nada, el botón **"Solo
+    exportar"** de esa misma ventana lo hace sin tocar tus datos ni generar
+    vale.
 - **Carga rápida**: la primera vez que alguien entra en un dispositivo, la
   app tarda unos segundos en traer las ~14.400 filas. A partir de ahí,
   guarda una copia en ese navegador y la muestra al instante la próxima vez
