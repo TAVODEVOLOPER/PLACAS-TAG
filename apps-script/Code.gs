@@ -26,11 +26,12 @@ const HEADER_ROW = 1;          // fila donde están los encabezados
 const FIRST_DATA_ROW = 2;      // primera fila con datos
 
 // Columnas fijas (A-H) + columnas editables (I-L) + auditoría opcional (M-N)
+// + entrega (O)
 const COLS = {
   ITEM: 1, INSTALL: 2, DISCIPLINE: 3, SUBCONTRACTOR: 4, TAG: 5,
   SYSTEM: 6, DESCRIPTION: 7, LEVEL: 8,
   PQT_DW: 9, PQT_BW: 10, GQE: 11, OBS: 12,
-  EDITOR: 13, UPDATED_AT: 14
+  EDITOR: 13, UPDATED_AT: 14, ENTREGADO: 15
 };
 
 function getSheet_() {
@@ -57,7 +58,7 @@ function doGet(e) {
   }
 }
 
-/** POST: body JSON = { action: 'updateRow', item, pqtDW, pqtBW, gqe, obs, editor } */
+/** POST: body JSON = { action: 'updateRow', item, pqtDW, pqtBW, gqe, obs, entregado, editor } */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -81,7 +82,7 @@ function getData_() {
   if (lastRow < FIRST_DATA_ROW) return { ok: true, rows: [] };
 
   const numRows = lastRow - FIRST_DATA_ROW + 1;
-  const values = sheet.getRange(FIRST_DATA_ROW, 1, numRows, 14).getValues();
+  const values = sheet.getRange(FIRST_DATA_ROW, 1, numRows, 15).getValues();
 
   const rows = [];
   for (let idx = 0; idx < values.length; idx++) {
@@ -101,6 +102,7 @@ function getData_() {
       bw: v[COLS.PQT_BW - 1],
       g: v[COLS.GQE - 1],
       o: v[COLS.OBS - 1],
+      ent: v[COLS.ENTREGADO - 1],
       ed: v[COLS.EDITOR - 1] || '',
       up: v[COLS.UPDATED_AT - 1] || ''
     });
@@ -144,7 +146,7 @@ function getSummary_() {
   return { ok: true, summary: summary, generatedAt: new Date().toISOString() };
 }
 
-/** Actualiza PQT DW / PQT BW / GQE / OBS de una fila, localizándola por ITEM. */
+/** Actualiza PQT DW / PQT BW / GQE / OBS / ENTREGADO de una fila, localizándola por ITEM. */
 function updateRow_(body) {
   const sheet = getSheet_();
   const lastRow = sheet.getLastRow();
@@ -166,6 +168,7 @@ function updateRow_(body) {
   if (body.pqtBW !== undefined) sheet.getRange(targetRow, COLS.PQT_BW).setValue(body.pqtBW);
   if (body.gqe !== undefined) sheet.getRange(targetRow, COLS.GQE).setValue(body.gqe);
   if (body.obs !== undefined) sheet.getRange(targetRow, COLS.OBS).setValue(body.obs);
+  if (body.entregado !== undefined) sheet.getRange(targetRow, COLS.ENTREGADO).setValue(body.entregado);
 
   const now = new Date().toISOString();
   sheet.getRange(targetRow, COLS.EDITOR).setValue(body.editor || '');

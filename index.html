@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PLACAS · Control de paquetes</title>
-<link rel="manifest" href="manifest.json?v=1.5.0">
+<link rel="manifest" href="manifest.json?v=1.6.0">
 <meta name="theme-color" content="#2563eb">
 <link rel="icon" href="assets/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="PLACAS">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1.5.0">
+<link rel="stylesheet" href="style.css?v=1.6.0">
 </head>
 <body>
 
@@ -120,6 +120,11 @@
           <option value="Y">Creados (Y)</option>
           <option value="">Sin marcar</option>
         </select>
+        <select id="filterEntregado">
+          <option value="">Entregado (todos)</option>
+          <option value="Y">Entregados</option>
+          <option value="N">Pendientes de entregar</option>
+        </select>
         <button id="packageFilterBtn" class="btn-secondary">Paquetes (todos)</button>
         <button id="exportCsvBtn" class="btn-secondary admin-only">Exportar CSV</button>
         <button id="exportExcelBtn" class="btn-secondary admin-only">Exportar Excel</button>
@@ -142,6 +147,7 @@
               <th>PQT DW</th>
               <th>PQT BW</th>
               <th>GQE</th>
+              <th>ENTREGADO</th>
               <th>OBS</th>
               <th class="admin-only-cell"></th>
             </tr>
@@ -212,6 +218,7 @@
               <th>SISTEMA</th>
               <th>DESCRIPCIÓN</th>
               <th>LEVEL</th>
+              <th>ENTREGADO</th>
               <th>OBS</th>
             </tr>
           </thead>
@@ -225,6 +232,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=1.5.0"></script>
+<script src="app.js?v=1.6.0"></script>
 </body>
 </html>

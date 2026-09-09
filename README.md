@@ -33,10 +33,13 @@ placas-app/
 4. Comprueba que la fila 1 tiene los encabezados: `ITEM, INSTALL, DISCIPLINE,
    SUBCONTRACTOR, TAG, SYSTEM, DESCRIPTION, LEVEL, PQT DW, PQT BW, GQE, OBS`
    y que los datos empiezan en la fila 2.
-5. La app añade dos columnas más a la derecha (**M: Editor**, **N:
-   Actualizado**) automáticamente la primera vez que alguien guarda un
-   cambio, para saber quién tocó cada fila y cuándo. Es opcional: si no las
-   quieres, bórralas de `Code.gs` (líneas con `EDITOR` y `UPDATED_AT`).
+5. La app añade tres columnas más a la derecha (**M: Editor**, **N:
+   Actualizado**, **O: Entregado**) automáticamente la primera vez que
+   alguien guarda un cambio, para saber quién tocó cada fila, cuándo, y si
+   esa placa ya fue entregada al subcontratista. Si quieres que la columna
+   O tenga encabezado, escribe "ENTREGADO" en O1 — la app funciona igual
+   aunque esa celda quede vacía. Es opcional: si no la quieres, bórrala de
+   `Code.gs` (línea con `ENTREGADO`).
 
 ## 2. Publica el backend (Apps Script)
 
@@ -87,6 +90,13 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 
 ## 4. Sube la app a GitHub
 
+> ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
+> nuevo (agregó la columna `ENTREGADO`) y pégalo en tu Apps Script,
+> reemplazando todo el contenido anterior. Luego **Implementar > Gestionar
+> implementaciones > ✏️ (editar) > Versión: Nueva versión > Implementar**
+> — si solo guardas el script sin crear una nueva versión, la app seguirá
+> usando el código viejo y la columna Entregado no se guardará.
+
 Arrastra **todo** el contenido de la carpeta `placas-app` (incluida la
 carpeta `assets/` con la imagen de fondo) a tu repositorio, tal como hiciste
 la primera vez. Si ya tienes el repo creado, entra a él, pulsa **Add file >
@@ -111,19 +121,23 @@ configurar de su parte.
   paquete asignado, con color de rojo → ámbar → teal según el avance).
 - **Clic en un paquete** (PQT DW o BW): abre una ventana con la lista
   completa de TAGs de ese paquete, con su propio buscador.
-- **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE) y
-  el botón **Paquetes**, que abre una ventana para elegir uno o varios
-  paquetes DW/BW específicos — útil para entregar solo los TAGs de un
-  paquete a un subcontratista. Los administradores editan `PQT DW`,
-  `PQT BW`, `GQE` y `OBS` en línea, con su propio botón **Guardar** por
-  fila. Los usuarios ven la tabla en modo solo lectura.
+- **Tabla**: buscador + filtros (disciplina, subcontratista, estado, GQE,
+  **Entregado**) y el botón **Paquetes**, que abre una ventana para elegir
+  uno o varios paquetes DW/BW específicos — útil para entregar solo los
+  TAGs de un paquete a un subcontratista. Los administradores editan
+  `PQT DW`, `PQT BW`, `GQE`, **`ENTREGADO`** y `OBS` en línea, con su
+  propio botón **Guardar** por fila (marca `Y` en Entregado cuando la
+  placa ya se entregó al subcontratista — útil porque las entregas se
+  hacen por partes). Los usuarios ven la tabla en modo solo lectura.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
   así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
   traer los últimos cambios de tus compañeros.
 - **Exportar**: PDF (todos), y CSV/Excel (solo administradores) — siempre
   con los filtros que tengas aplicados en ese momento (incluido el filtro
   de paquetes). El PDF además ordena las filas por número de paquete de
-  menor a mayor, para que sea fácil de repartir por paquete.
+  menor a mayor. Si en el filtro de paquetes eliges **solo** paquetes DW
+  (o **solo** BW), el PDF oculta automáticamente la columna del otro tipo
+  para no confundir — si eliges de ambos tipos a la vez, muestra las dos.
 - **Carga rápida**: la primera vez que alguien entra en un dispositivo, la
   app tarda unos segundos en traer las ~14.400 filas. A partir de ahí,
   guarda una copia en ese navegador y la muestra al instante la próxima vez

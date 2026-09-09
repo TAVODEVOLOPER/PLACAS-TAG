@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.5.0';
+const APP_VERSION = 'v1.6.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -327,6 +327,7 @@ function openPackageModal(field, key) {
         <td>${escapeHtml(row.sys)}</td>
         <td class="desc-cell" title="${escapeHtml(row.desc)}">${escapeHtml(row.desc)}</td>
         <td>${escapeHtml(row.lvl)}</td>
+        <td>${escapeHtml(row.ent)}</td>
         <td>${escapeHtml(row.o)}</td>
       </tr>
     `).join('');
@@ -443,7 +444,7 @@ document.getElementById('pickerClearBtn').addEventListener('click', () => {
   applyFilters();
 });
 
-['searchInput', 'filterDiscipline', 'filterSubcontractor', 'filterEstado', 'filterGQE'].forEach(id => {
+['searchInput', 'filterDiscipline', 'filterSubcontractor', 'filterEstado', 'filterGQE', 'filterEntregado'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => { state.page = 1; applyFilters(); });
 });
 
@@ -453,6 +454,7 @@ function applyFilters() {
   const sub = document.getElementById('filterSubcontractor').value;
   const estado = document.getElementById('filterEstado').value;
   const gqeFilter = document.getElementById('filterGQE').value;
+  const entregadoFilter = document.getElementById('filterEntregado').value;
   const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
 
   state.filtered = state.rows.filter(row => {
@@ -466,6 +468,10 @@ function applyFilters() {
     if (estado === 'pendiente' && clasificada) return false;
 
     if (gqeFilter === 'Y' && String(row.g).toUpperCase() !== 'Y') return false;
+
+    const entregada = String(row.ent).toUpperCase() === 'Y';
+    if (entregadoFilter === 'Y' && !entregada) return false;
+    if (entregadoFilter === 'N' && entregada) return false;
 
     if (hasPkgFilter) {
       const matchesDW = state.selectedDW.size > 0 && hasDW && state.selectedDW.has(String(row.dw));
@@ -518,6 +524,7 @@ function readonlyRowHtml(row) {
       <td class="readonly-cell">${escapeHtml(row.dw)}</td>
       <td class="readonly-cell">${escapeHtml(row.bw)}</td>
       <td class="readonly-cell">${escapeHtml(row.g)}</td>
+      <td class="readonly-cell">${escapeHtml(row.ent)}</td>
       <td>${escapeHtml(row.o)}</td>
       <td></td>
     </tr>
@@ -538,6 +545,7 @@ function editableRowHtml(row) {
       <td><input class="editable" data-field="dw" type="text" value="${escapeHtml(row.dw)}"></td>
       <td><input class="editable" data-field="bw" type="text" value="${escapeHtml(row.bw)}"></td>
       <td><input class="editable gqe-input" data-field="g" type="text" maxlength="1" value="${escapeHtml(row.g)}"></td>
+      <td><input class="editable gqe-input" data-field="ent" type="text" maxlength="1" value="${escapeHtml(row.ent)}"></td>
       <td><input class="editable obs-input" data-field="o" type="text" value="${escapeHtml(row.o)}"></td>
       <td><button class="row-save-btn">Guardar</button></td>
     </tr>
@@ -564,6 +572,7 @@ async function onSaveRow(e) {
     pqtDW: tr.querySelector('[data-field="dw"]').value.trim(),
     pqtBW: tr.querySelector('[data-field="bw"]').value.trim(),
     gqe: tr.querySelector('[data-field="g"]').value.trim().toUpperCase(),
+    entregado: tr.querySelector('[data-field="ent"]').value.trim().toUpperCase(),
     obs: tr.querySelector('[data-field="o"]').value.trim(),
     editor: state.userName
   };
@@ -578,6 +587,7 @@ async function onSaveRow(e) {
       rowObj.dw = payload.pqtDW;
       rowObj.bw = payload.pqtBW;
       rowObj.g = payload.gqe;
+      rowObj.ent = payload.entregado;
       rowObj.o = payload.obs;
       saveCache(state.rows);
     }
@@ -605,10 +615,10 @@ document.getElementById('nextPageBtn').addEventListener('click', () => {
 
 // ---------------- Export: CSV / Excel / PDF ----------------
 
-const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'OBS'];
+const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'ENTREGADO', 'OBS'];
 
 function exportRowsAsArrays() {
-  return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o]);
+  return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.ent, row.o]);
 }
 
 document.getElementById('exportCsvBtn').addEventListener('click', () => {
@@ -649,17 +659,36 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
     };
     return keyOf(a) - keyOf(b);
   });
-  const body = sortedRows.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o]);
+
+  // Si el filtro de paquetes solo usa DW o solo BW, no mostramos la otra
+  // columna de paquete (queda vacía en todas las filas y solo confunde).
+  const onlyDW = state.selectedDW.size > 0 && state.selectedBW.size === 0;
+  const onlyBW = state.selectedBW.size > 0 && state.selectedDW.size === 0;
+
+  let headers = EXPORT_HEADERS;
+  let rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.ent, row.o];
+
+  if (onlyDW) {
+    headers = EXPORT_HEADERS.filter(h => h !== 'PQT BW');
+    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.g, row.ent, row.o];
+  } else if (onlyBW) {
+    headers = EXPORT_HEADERS.filter(h => h !== 'PQT DW');
+    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.bw, row.g, row.ent, row.o];
+  }
+
+  const body = sortedRows.map(rowMapper);
+  const descColIndex = headers.indexOf('DESCRIPTION');
+  const tagColIndex = headers.indexOf('TAG');
 
   doc.autoTable({
     startY: 56,
-    head: [EXPORT_HEADERS],
+    head: [headers],
     body: body,
     styles: { fontSize: 6.5, cellPadding: 3, overflow: 'linebreak' },
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 246, 250] },
     margin: { left: 20, right: 20 },
-    columnStyles: { 4: { cellWidth: 130 }, 6: { cellWidth: 140 } }
+    columnStyles: { [tagColIndex]: { cellWidth: 130 }, [descColIndex]: { cellWidth: 140 } }
   });
 
   doc.save(`placas_export_${todayStr()}.pdf`);
