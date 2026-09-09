@@ -133,9 +133,11 @@ configurar de su parte.
 - **Instalar como app**: si el navegador lo permite (Chrome, Edge, Android),
   aparece un botón **"Instalar app"** en la pantalla de inicio y en la
   barra superior. Al instalarla queda como un ícono más en el celular o el
-  escritorio, y abre en su propia ventana sin barra de navegador. En
-  iPhone/iPad (Safari no dispara ese botón) se instala manualmente:
-  Compartir → "Añadir a pantalla de inicio".
+  escritorio (con el ícono "PE · Registro de Placas"), y abre en su propia
+  ventana sin barra de navegador. En iPhone/iPad (Safari no dispara ese
+  botón) se instala manualmente: Compartir → "Añadir a pantalla de inicio".
+- **Se adapta a celular, tablet y escritorio**: los paneles, la tabla y los
+  filtros se reacomodan según el ancho de pantalla.
 
 ## Notas y límites a tener en cuenta
 

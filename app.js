@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -279,11 +279,11 @@ function renderChipGrid(elId, dict, field) {
   });
 }
 
-// Escala de calor: rojo (bajo avance) → ámbar → teal (alto avance)
+// Colores vivos por rango de avance (rojo → ámbar → teal)
 function heatColor(pct) {
-  if (pct >= 66) return '#0d9488';
-  if (pct >= 33) return '#d97706';
-  return '#dc2626';
+  if (pct >= 66) return { solid: '#0d9488', tint: 'rgba(13,148,136,0.10)' };
+  if (pct >= 33) return { solid: '#d97706', tint: 'rgba(217,119,6,0.10)' };
+  return { solid: '#dc2626', tint: 'rgba(220,38,38,0.08)' };
 }
 
 function renderHeatList(elId, totals, done) {
@@ -296,12 +296,13 @@ function renderHeatList(elId, totals, done) {
   el.innerHTML = entries.map(([disc, total]) => {
     const doneCount = done[disc] || 0;
     const pct = total ? Math.round((doneCount / total) * 100) : 0;
-    const color = heatColor(pct);
+    const c = heatColor(pct);
     return `
-      <div class="heat-row">
-        <span class="heat-label" title="${escapeHtml(disc)}">${escapeHtml(disc)}</span>
-        <span class="heat-track"><span class="heat-fill" style="width:${pct}%;background:${color}"></span></span>
-        <span class="heat-meta">${doneCount}/${total} · ${pct}%</span>
+      <div class="heat-row" style="background:${c.tint}">
+        <span class="heat-label" style="color:${c.solid}" title="${escapeHtml(disc)}">${escapeHtml(disc)}</span>
+        <span class="heat-track"><span class="heat-fill" style="width:${pct}%;background:${c.solid}"></span></span>
+        <span class="heat-count">${doneCount}/${total}</span>
+        <span class="heat-badge" style="background:${c.solid}">${pct}%</span>
       </div>
     `;
   }).join('');
