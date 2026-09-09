@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v2.4.0';
+const APP_VERSION = 'v2.6.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -962,12 +962,11 @@ document.getElementById('generateValeBtn').addEventListener('click', () => {
 });
 
 function openValeModal(rows) {
-  const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
+  const entregados = rows.filter(r => String(r.ent).toUpperCase() === 'Y').length;
 
   const modal = document.getElementById('deliveryModal');
-  document.getElementById('deliveryModalSubtitle').textContent = pendientes.length > 0
-    ? `Este vale incluirá ${rows.length} TAG(s). ${pendientes.length} todavía no está(n) marcado(s) como entregado(s) — se marcarán al generar el vale.`
-    : `Este vale incluirá ${rows.length} TAG(s), ya marcados como entregados.`;
+  document.getElementById('deliveryModalSubtitle').textContent =
+    `Este vale incluirá ${rows.length} TAG(s) (${entregados} ya marcado(s) como entregado(s) en la tabla). No modifica la columna ENTREGADO — eso lo marcas tú manualmente en la Tabla.`;
   document.getElementById('deliveryOrigen').value = localStorage.getItem('placas_almacen_origen') || '';
   document.getElementById('deliveryDestino').value = localStorage.getItem('placas_almacen_destino') || '';
   document.getElementById('deliveryEntrego').value = state.userName || '';
@@ -993,23 +992,6 @@ function openValeModal(rows) {
 
     localStorage.setItem('placas_almacen_origen', origen);
     localStorage.setItem('placas_almacen_destino', destino);
-
-    if (pendientes.length > 0) {
-      showToast(`Marcando ${pendientes.length} TAG(s) como entregado(s)…`, 'success');
-      for (const row of pendientes) {
-        try {
-          const result = await apiPost({ action: 'updateRow', r: row.r, entregado: 'Y', editor: state.userName });
-          if (result.ok) {
-            row.ent = 'Y';
-            const master = state.rows.find(x => x.r === row.r);
-            if (master) master.ent = 'Y';
-          }
-        } catch (e) { /* seguimos con las demás filas aunque una falle */ }
-      }
-      saveCache(state.rows);
-      renderDashboard();
-      applyFilters(); // refresca lo que se ve en pantalla
-    }
 
     let fotoDataUrl = null;
     if (fotoFile) {
@@ -1135,15 +1117,22 @@ async function generateValeEntrega(rows, meta) {
   y += cardH + 34;
 
   // ---------- Resumen de paquetes ----------
+  // Igual que en el PDF de tarjetas: sin filtro de paquetes activo, solo se
+  // resumen los DW; si se filtró explícitamente por BW (con o sin DW), esos
+  // también aparecen. Así el vale muestra solo lo que realmente elegiste.
+  const includeDW = state.selectedDW.size > 0 || state.selectedBW.size === 0;
+  const includeBW = state.selectedBW.size > 0;
+
   const groups = {};
   rows.forEach(row => {
     const hasDW = row.dw !== '' && row.dw !== null && row.dw !== undefined;
     const hasBW = row.bw !== '' && row.bw !== null && row.bw !== undefined;
-    if (hasDW) { const k = 'DW-' + row.dw; groups[k] = groups[k] || { label: `PQT ${row.dw} DW`, tipo: 'DW', num: row.dw, count: 0 }; groups[k].count++; }
-    if (hasBW) { const k = 'BW-' + row.bw; groups[k] = groups[k] || { label: `PQT ${row.bw} BW`, tipo: 'BW', num: row.bw, count: 0 }; groups[k].count++; }
+    if (hasDW && includeDW) { const k = 'DW-' + row.dw; groups[k] = groups[k] || { label: `PQT ${row.dw} DW`, tipo: 'DW', num: row.dw, count: 0 }; groups[k].count++; }
+    if (hasBW && includeBW) { const k = 'BW-' + row.bw; groups[k] = groups[k] || { label: `PQT ${row.bw} BW`, tipo: 'BW', num: row.bw, count: 0 }; groups[k].count++; }
     if (!hasDW && !hasBW) { groups['SIN'] = groups['SIN'] || { label: 'Sin paquete asignado', tipo: '—', num: Infinity, count: 0 }; groups['SIN'].count++; }
   });
   const groupList = Object.values(groups).sort((a, b) => Number(a.num) - Number(b.num));
+  const totalEnGrupos = groupList.reduce((sum, g) => sum + g.count, 0);
 
   doc.setFontSize(12);
   doc.setFont(undefined, 'bold');
@@ -1161,8 +1150,9 @@ async function generateValeEntrega(rows, meta) {
     body: groupList.map(g => [g.label, g.tipo, String(g.count)]),
     foot: [[
       { content: 'TOTAL ENTREGADO', colSpan: 2 },
-      { content: String(rows.length) }
+      { content: String(totalEnGrupos) }
     ]],
+    showFoot: 'lastPage',
     styles: { fontSize: 9.5, cellPadding: 8, textColor: TEXT },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
     columnStyles: { 0: { fontStyle: 'bold' }, 1: { textColor: MUTED }, 2: { halign: 'right', fontStyle: 'bold' } },
