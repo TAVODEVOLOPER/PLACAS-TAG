@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.3.0';
+const APP_VERSION = 'v3.4.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -931,31 +931,52 @@ document.getElementById('conflictsAllCurrentBtn').addEventListener('click', () =
 document.getElementById('importApplyBtn').addEventListener('click', async () => {
   if (!importAnalysis) return;
   const changesByRow = new Map();
+  const reportRows = [];
 
   importAnalysis.autoApply.forEach(c => {
     const entry = changesByRow.get(c.row.r) || { row: c.row, fields: {} };
     entry.fields[c.apiKey] = c.newVal;
     changesByRow.set(c.row.r, entry);
+    reportRows.push({
+      tag: c.row.tag, item: c.row.i, campo: c.label,
+      valorAnterior: '', valorExcel: c.newVal,
+      decision: 'Automático (campo vacío)', rowRef: c.row.r
+    });
   });
   importAnalysis.conflicts.forEach(c => {
-    if (c.decision !== 'excel') return;
-    const entry = changesByRow.get(c.row.r) || { row: c.row, fields: {} };
-    entry.fields[c.apiKey] = c.excelVal;
-    changesByRow.set(c.row.r, entry);
+    if (c.decision === 'excel') {
+      const entry = changesByRow.get(c.row.r) || { row: c.row, fields: {} };
+      entry.fields[c.apiKey] = c.excelVal;
+      changesByRow.set(c.row.r, entry);
+      reportRows.push({
+        tag: c.row.tag, item: c.row.i, campo: c.label,
+        valorAnterior: c.currentVal, valorExcel: c.excelVal,
+        decision: 'Conflicto: se usó el valor del Excel', rowRef: c.row.r
+      });
+    } else {
+      reportRows.push({
+        tag: c.row.tag, item: c.row.i, campo: c.label,
+        valorAnterior: c.currentVal, valorExcel: c.excelVal,
+        decision: 'Conflicto: se mantuvo el valor actual', rowRef: null,
+        resultado: 'Sin cambios', detalle: ''
+      });
+    }
   });
 
   const entries = [...changesByRow.values()];
   document.getElementById('importModal').classList.add('hidden');
 
-  if (entries.length === 0) {
+  const nothingToDo = entries.length === 0 && importAnalysis.notFound.length === 0 && importAnalysis.duplicates.length === 0;
+  if (nothingToDo) {
     showToast('No hay cambios para aplicar.', 'error');
     importAnalysis = null;
     return;
   }
 
-  showToast(`Aplicando cambios a ${entries.length} TAG(s)…`, 'success');
+  if (entries.length > 0) showToast(`Aplicando cambios a ${entries.length} TAG(s)…`, 'success');
 
   let okCount = 0, errCount = 0;
+  const rowResult = new Map();
   for (const entry of entries) {
     try {
       const payload = Object.assign({ action: 'updateRow', r: entry.row.r, editor: state.userName }, entry.fields);
@@ -966,19 +987,50 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
           if (map) entry.row[map.field] = entry.fields[apiKey];
         });
         okCount++;
+        rowResult.set(entry.row.r, { ok: true });
       } else {
         errCount++;
+        rowResult.set(entry.row.r, { ok: false, error: result.error || 'Error desconocido' });
       }
-    } catch (e) { errCount++; }
+    } catch (e) {
+      errCount++;
+      rowResult.set(entry.row.r, { ok: false, error: e.message });
+    }
   }
+
+  reportRows.forEach(rr => {
+    if (rr.resultado) return; // ya quedó definido (ej. "Sin cambios")
+    const res = rowResult.get(rr.rowRef);
+    rr.resultado = res ? (res.ok ? 'OK' : 'Error') : '—';
+    rr.detalle = res && !res.ok ? res.error : '';
+  });
+
+  importAnalysis.notFound.forEach(tag => {
+    reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'TAG no encontrado en la Sheet' });
+  });
+  importAnalysis.duplicates.forEach(tag => {
+    reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'TAG duplicado en la Sheet (no se pudo saber cuál fila actualizar)' });
+  });
 
   saveCache(state.rows);
   renderDashboard();
   applyFilters();
   importAnalysis = null;
 
-  showToast(`Importación terminada: ${okCount} TAG(s) actualizados${errCount ? `, ${errCount} con error` : ''}.`, errCount ? 'error' : 'success');
+  showToast(`Importación terminada: ${okCount} TAG(s) actualizados${errCount ? `, ${errCount} con error` : ''}. Descargando reporte…`, errCount ? 'error' : 'success');
+  downloadImportReport(reportRows);
 });
+
+function downloadImportReport(reportRows) {
+  const headers = ['TAG', 'ITEM', 'Campo', 'Valor anterior', 'Valor del Excel', 'Decisión', 'Resultado', 'Detalle'];
+  const lines = [headers.join(',')];
+  reportRows.forEach(r => {
+    const vals = [r.tag, r.item, r.campo, r.valorAnterior, r.valorExcel, r.decision, r.resultado, r.detalle || ''];
+    lines.push(vals.map(csvEscape).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, `reporte_importacion_${todayStr()}.csv`);
+}
 
 // Botón independiente "Generar Vale de Entrega": ya no se ejecuta al
 // exportar PDF (eso quedaba lento y bloqueaba la exportación). Requiere un

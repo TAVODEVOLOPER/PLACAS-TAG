@@ -168,7 +168,14 @@ configurar de su parte.
      - Los TAGs del Excel que no existen en tu Sheet, o que están
        duplicados en tu Sheet, se omiten y se informan en el resumen (no
        crea TAGs nuevos ni adivina cuál actualizar si hay duplicados).
-  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet.
+  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet, y al
+     terminar descarga automáticamente un **reporte en CSV**
+     (`reporte_importacion_...csv`) con el detalle completo: cada TAG,
+     qué campo cambió, el valor anterior y el nuevo, si fue automático o
+     un conflicto (y cómo lo resolviste), y si se guardó bien o falló —
+     incluyendo los TAGs no encontrados o duplicados que se omitieron. Es
+     tu comprobante de que la importación se aplicó, sin depender del
+     aviso que desaparece a los pocos segundos.
 
   Tu Excel de importación necesita al menos la columna `TAG` y una o más
   de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS` con
