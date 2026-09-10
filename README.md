@@ -249,18 +249,9 @@ configurar de su parte.
   Entrega, la app pregunta si también quieres subir una copia a una
   carpeta de tu Google Drive. Si aceptas, se sube usando tu propio Apps
   Script (sin pedirte ningún login adicional) — funciona desde cualquier
-  dispositivo o navegador, a diferencia de la "Carpeta de vales" local que
-  es solo Chrome/Edge de escritorio. Requiere configurar `FOLDER_ID` en
-  `Code.gs` (ver paso 4); si no lo configuras, simplemente no ofrece subir
-  nada distinto a lo normal.
-- **Carpeta de vales** (solo administradores, Chrome/Edge de escritorio):
-  botón **"Carpeta de vales"** para elegir una carpeta una sola vez; desde
-  ahí, cada Vale de Entrega que generes se guarda directo ahí, sin mostrar
-  el diálogo de descarga de tu navegador. En Safari, la mayoría de
-  navegadores de celular, u otros sin esta función, el botón te avisa que
-  no está disponible y los vales se descargan normal como antes. Nota: la
-  carpeta elegida se recuerda solo mientras la pestaña sigue abierta —
-  hay que volver a elegirla si recargas la página.
+  dispositivo o navegador. Requiere configurar `FOLDER_ID` en `Code.gs`
+  (ver paso 4); si no lo configuras, simplemente no ofrece subir nada
+  distinto a lo normal.
 
 ## Notas y límites a tener en cuenta
 

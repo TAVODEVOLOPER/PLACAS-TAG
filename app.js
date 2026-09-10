@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.1.0';
+const APP_VERSION = 'v3.2.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -1037,47 +1037,6 @@ function fileToDataUrl(file) {
   });
 }
 
-// ---------------- Carpeta de vales (guardar sin diálogo de descarga) ----------------
-// Usa la File System Access API (Chrome/Edge de escritorio). En navegadores
-// sin soporte (Safari, la mayoría de móviles) simplemente no se ofrece, y
-// los vales se descargan normal como antes.
-
-let valeFolderHandle = null;
-
-function supportsFolderPicker() {
-  return 'showDirectoryPicker' in window;
-}
-
-document.getElementById('valeFolderBtn').addEventListener('click', async () => {
-  if (!supportsFolderPicker()) {
-    showToast('Tu navegador no permite elegir una carpeta directamente (funciona en Chrome/Edge de escritorio). Los vales se seguirán descargando normal.', 'error');
-    return;
-  }
-  try {
-    valeFolderHandle = await window.showDirectoryPicker();
-    document.getElementById('valeFolderBtn').textContent = `Carpeta de vales: ${valeFolderHandle.name}`;
-    showToast('Listo. Los próximos vales se guardarán ahí automáticamente.', 'success');
-  } catch (e) {
-    /* el usuario canceló el selector, no hacemos nada */
-  }
-});
-
-// Intenta guardar el PDF directo en la carpeta elegida. Devuelve true si lo
-// logró (no hace falta descargar), o false si hay que usar doc.save() normal.
-async function saveFileToValeFolder(filename, blob) {
-  if (!valeFolderHandle) return false;
-  try {
-    const fileHandle = await valeFolderHandle.getFileHandle(filename, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return true;
-  } catch (e) {
-    showToast('No se pudo guardar en la carpeta elegida, se descargará normal.', 'error');
-    return false;
-  }
-}
-
 // ---------------- Archivos en Google Drive (ver, agregar, eliminar) ----------------
 // Usa listDriveFiles / uploadFile / deleteFile en Code.gs, sobre la carpeta
 // configurada en FOLDER_ID. Requiere que esa constante esté configurada.
@@ -1383,12 +1342,7 @@ async function generateValeEntrega(rows, meta) {
   addValeFooter(doc, folio);
   const filename = `vale_entrega_${folio}.pdf`;
   const valeBlob = doc.output('blob');
-  const savedToFolder = await saveFileToValeFolder(filename, valeBlob);
-  if (savedToFolder) {
-    showToast(`Vale guardado en tu carpeta: ${filename}`, 'success');
-  } else {
-    downloadBlob(valeBlob, filename);
-  }
+  downloadBlob(valeBlob, filename);
   await offerDriveUpload(filename, valeBlob, 'application/pdf');
 }
 
@@ -1512,6 +1466,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', async () => {
   const body = sortedRows.map(rowMapper);
   const descColIndex = headers.indexOf('DESCRIPTION');
   const tagColIndex = headers.indexOf('TAG');
+  const obsColIndex = headers.indexOf('OBS');
 
   doc.autoTable({
     startY: 56,
@@ -1521,7 +1476,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', async () => {
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 246, 250] },
     margin: { left: 20, right: 20, bottom: 30 },
-    columnStyles: { [tagColIndex]: { cellWidth: 150 }, [descColIndex]: { cellWidth: 150 } }
+    columnStyles: { [tagColIndex]: { cellWidth: 190 }, [descColIndex]: { cellWidth: 150 }, [obsColIndex]: { cellWidth: 70 } }
   });
 
   addPdfFooter(doc);
@@ -1579,7 +1534,7 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
 
   let y = 60;
   const cardHeaders = ['TAG', 'DISC.', 'SUBCONTRATISTA', 'SISTEMA', 'DESCRIPCIÓN', 'LVL', 'OBS'];
-  const colWidths = [90, 34, 82, 46, 155, 22, 118]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
+  const colWidths = [130, 34, 82, 46, 155, 22, 78]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
 
   groupList.forEach(([key, group]) => {
     const total = group.rows.length;
