@@ -32,7 +32,7 @@
 const SHEET_NAME = 'PLACAS';   // nombre de la pestaña con los datos
 const HEADER_ROW = 1;          // fila donde están los encabezados
 const FIRST_DATA_ROW = 2;      // primera fila con datos
-const FOLDER_ID = 'PON_AQUI_EL_ID_DE_TU_CARPETA_DE_DRIVE'; // ← reemplaza esto
+const FOLDER_ID = '199wdC4Jt_lS17mTxQWIyQjfFBYC7e14_'; // ← reemplaza esto
 
 // Columnas fijas (A-H) + columnas editables (I-L) + auditoría opcional (M-N)
 // + entrega (O)
