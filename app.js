@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v2.6.0';
+const APP_VERSION = 'v2.8.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -682,17 +682,19 @@ function sortByPackageAsc(rows) {
   return [...rows].sort((a, b) => keyOf(a) - keyOf(b));
 }
 
-document.getElementById('exportCsvBtn').addEventListener('click', () => {
+document.getElementById('exportCsvBtn').addEventListener('click', async () => {
   const lines = [EXPORT_HEADERS.join(',')];
   exportRowsAsArrays().forEach(vals => lines.push(vals.map(csvEscape).join(',')));
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, `placas_export_${todayStr()}.csv`);
+  const filename = `placas_export_${todayStr()}.csv`;
+  downloadBlob(blob, filename);
+  await offerDriveUpload(filename, blob, 'text/csv');
 });
 
 // Excel: para administradores. Oculta GQE y ENTREGADO (control interno del
 // administrador) y, si el filtro de paquetes usa solo DW o solo BW, oculta
 // también la otra columna de paquete. Ordenado por paquete ascendente.
-document.getElementById('exportExcelBtn').addEventListener('click', () => {
+document.getElementById('exportExcelBtn').addEventListener('click', async () => {
   if (typeof XLSX === 'undefined') { showToast('No se pudo cargar el módulo de Excel. Revisa tu conexión.', 'error'); return; }
 
   const onlyDW = state.selectedDW.size > 0 && state.selectedBW.size === 0;
@@ -715,7 +717,12 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   ws['!cols'] = headers.map(() => ({ wch: 18 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'PLACAS');
-  XLSX.writeFile(wb, `placas_export_${todayStr()}.xlsx`);
+
+  const filename = `placas_export_${todayStr()}.xlsx`;
+  const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadBlob(blob, filename);
+  await offerDriveUpload(filename, blob, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
 // ---------------- Importar Excel (actualizar PQT DW/BW, GQE, OBS, Entregado) ----------------
@@ -1016,6 +1023,47 @@ function fileToDataUrl(file) {
   });
 }
 
+// ---------------- Carpeta de vales (guardar sin diálogo de descarga) ----------------
+// Usa la File System Access API (Chrome/Edge de escritorio). En navegadores
+// sin soporte (Safari, la mayoría de móviles) simplemente no se ofrece, y
+// los vales se descargan normal como antes.
+
+let valeFolderHandle = null;
+
+function supportsFolderPicker() {
+  return 'showDirectoryPicker' in window;
+}
+
+document.getElementById('valeFolderBtn').addEventListener('click', async () => {
+  if (!supportsFolderPicker()) {
+    showToast('Tu navegador no permite elegir una carpeta directamente (funciona en Chrome/Edge de escritorio). Los vales se seguirán descargando normal.', 'error');
+    return;
+  }
+  try {
+    valeFolderHandle = await window.showDirectoryPicker();
+    document.getElementById('valeFolderBtn').textContent = `Carpeta de vales: ${valeFolderHandle.name}`;
+    showToast('Listo. Los próximos vales se guardarán ahí automáticamente.', 'success');
+  } catch (e) {
+    /* el usuario canceló el selector, no hacemos nada */
+  }
+});
+
+// Intenta guardar el PDF directo en la carpeta elegida. Devuelve true si lo
+// logró (no hace falta descargar), o false si hay que usar doc.save() normal.
+async function saveFileToValeFolder(filename, blob) {
+  if (!valeFolderHandle) return false;
+  try {
+    const fileHandle = await valeFolderHandle.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return true;
+  } catch (e) {
+    showToast('No se pudo guardar en la carpeta elegida, se descargará normal.', 'error');
+    return false;
+  }
+}
+
 async function apiGetNextValeNumber() {
   try {
     const data = await apiGet('nextValeNumber');
@@ -1230,7 +1278,15 @@ async function generateValeEntrega(rows, meta) {
   signatureBlock(marginX + sigW + 24, ORANGE, 'RECIBIÓ – ALMACÉN DE DESTINO', '');
 
   addValeFooter(doc, folio);
-  doc.save(`vale_entrega_${folio}.pdf`);
+  const filename = `vale_entrega_${folio}.pdf`;
+  const valeBlob = doc.output('blob');
+  const savedToFolder = await saveFileToValeFolder(filename, valeBlob);
+  if (savedToFolder) {
+    showToast(`Vale guardado en tu carpeta: ${filename}`, 'success');
+  } else {
+    downloadBlob(valeBlob, filename);
+  }
+  await offerDriveUpload(filename, valeBlob, 'application/pdf');
 }
 
 // Pie de página específico del Vale de Entrega (folio + numeración + crédito).
@@ -1275,10 +1331,39 @@ function addPdfFooter(doc) {
   }
 }
 
-document.getElementById('exportPdfBtn').addEventListener('click', () => {
+// Marca como "Entregado" SOLO en la app (memoria + caché del navegador), sin
+// llamar al backend — así es instantáneo. El Sheet se actualiza después a
+// mano o importando un Excel. Solo pregunta si hay un filtro de paquetes
+// activo, el usuario es administrador, y quedan TAGs pendientes.
+function maybeMarkDeliveredLocally(rows) {
+  const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
+  if (state.role !== 'admin' || !hasPkgFilter) return rows;
+
+  const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
+  if (pendientes.length === 0) return rows;
+
+  const wantsMark = window.confirm(
+    `¿Marcar ${pendientes.length} TAG(s) pendiente(s) como "Entregado"?\n\n` +
+    `Esto solo se guarda en esta app (no se sube a tu Google Sheet, para no demorar la exportación). ` +
+    `Actualiza el Sheet después a mano o importando un Excel con ese estado.`
+  );
+  if (wantsMark) {
+    pendientes.forEach(row => {
+      row.ent = 'Y';
+      const master = state.rows.find(x => x.r === row.r);
+      if (master) master.ent = 'Y';
+    });
+    saveCache(state.rows);
+    renderDashboard();
+    applyFilters();
+  }
+  return rows;
+}
+
+document.getElementById('exportPdfBtn').addEventListener('click', async () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
 
-  const rows = state.filtered;
+  const rows = maybeMarkDeliveredLocally(state.filtered.map(r => ({ ...r })));
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -1323,15 +1408,18 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   });
 
   addPdfFooter(doc);
-  doc.save(`placas_export_${todayStr()}.pdf`);
+  const pdfFilename = `placas_export_${todayStr()}.pdf`;
+  const pdfBlob = doc.output('blob');
+  downloadBlob(pdfBlob, pdfFilename);
+  await offerDriveUpload(pdfFilename, pdfBlob, 'application/pdf');
 });
 
 // PDF en vertical, una "tarjeta" por paquete (encabezado de color + su tabla
 // de TAGs), pensado para entregar el avance por paquete a cada subcontratista.
-document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
+document.getElementById('exportPdfCardsBtn').addEventListener('click', async () => {
   if (typeof window.jspdf === 'undefined') { showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión.', 'error'); return; }
 
-  const rows = state.filtered;
+  const rows = maybeMarkDeliveredLocally(state.filtered.map(r => ({ ...r })));
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -1421,7 +1509,10 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', () => {
   });
 
   addPdfFooter(doc);
-  doc.save(`placas_paquetes_${todayStr()}.pdf`);
+  const cardsFilename = `placas_paquetes_${todayStr()}.pdf`;
+  const cardsBlob = doc.output('blob');
+  downloadBlob(cardsBlob, cardsFilename);
+  await offerDriveUpload(cardsFilename, cardsBlob, 'application/pdf');
 });
 
 function hexToRgb(hex) {
@@ -1442,6 +1533,38 @@ function downloadBlob(blob, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------------- Subir exportaciones a Google Drive (opcional) ----------------
+// Usa el mismo backend de Apps Script (ya autorizado con tu cuenta de
+// Google) para guardar una copia en una carpeta de tu Drive. Funciona
+// desde cualquier dispositivo/navegador, a diferencia de la carpeta local
+// (esa es solo Chrome/Edge de escritorio).
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function offerDriveUpload(filename, blob, mimeType) {
+  const wantsUpload = window.confirm(`¿Subir "${filename}" también a tu carpeta de Google Drive?`);
+  if (!wantsUpload) return;
+  showToast('Subiendo a Google Drive…', 'success');
+  try {
+    const base64 = await blobToBase64(blob);
+    const result = await apiPost({ action: 'uploadFile', filename, mimeType, base64 });
+    if (result.ok) {
+      showToast('Subido a Google Drive correctamente.', 'success');
+    } else {
+      showToast('No se pudo subir a Drive: ' + (result.error || 'error desconocido'), 'error');
+    }
+  } catch (e) {
+    showToast('No se pudo subir a Drive: ' + e.message, 'error');
+  }
 }
 
 function csvEscape(val) {

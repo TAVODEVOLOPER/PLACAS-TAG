@@ -91,11 +91,21 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 ## 4. Sube la app a GitHub
 
 > ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
-> nuevo (agrega el contador de folios para el Vale de Entrega) y pégalo en
-> tu Apps Script, reemplazando todo el contenido anterior. Luego
-> **Implementar > Gestionar implementaciones > ✏️ (editar) > Versión:
-> Nueva versión > Implementar** — si solo guardas el script sin crear una
-> nueva versión, el botón de generar el Vale de Entrega no va a funcionar.
+> nuevo (agrega el contador de folios para el Vale de Entrega, y ahora
+> también la opción de subir archivos a Google Drive) y pégalo en tu Apps
+> Script, reemplazando todo el contenido anterior. Luego **Implementar >
+> Gestionar implementaciones > ✏️ (editar) > Versión: Nueva versión >
+> Implementar** — si solo guardas el script sin crear una nueva versión,
+> lo nuevo no va a funcionar.
+>
+> **Si quieres usar "Subir a Google Drive"** (opcional): antes de
+> redesplegar, crea o elige una carpeta en tu Drive, copia su ID desde la
+> URL (`drive.google.com/drive/folders/`**`ESTE-ID`**) y pégalo en la
+> constante `FOLDER_ID` al inicio de `Code.gs`. Al volver a implementar,
+> Google te va a pedir autorizar un permiso nuevo (acceso a Drive) — es
+> normal, acéptalo. Si dejas `FOLDER_ID` sin configurar, esa opción
+> simplemente muestra un error si alguien intenta usarla; todo lo demás
+> sigue funcionando igual.
 
 > ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
 > nuevo (agregó la columna `ENTREGADO`) y pégalo en tu Apps Script,
@@ -215,6 +225,33 @@ configurar de su parte.
   botón) se instala manualmente: Compartir → "Añadir a pantalla de inicio".
 - **Se adapta a celular, tablet y escritorio**: los paneles, la tabla y los
   filtros se reacomodan según el ancho de pantalla.
+
+- **Marcar como entregado al exportar PDF (solo en la app)**: si eres
+  administrador y tienes un filtro de paquetes activo con TAGs pendientes,
+  al exportar **PDF (tabla)** o **PDF (tarjetas)** la app pregunta si
+  quieres marcarlos como entregados. Si aceptas, el cambio queda **solo en
+  esta app** (memoria + caché del navegador) — no se sube a tu Google
+  Sheet, para que la exportación siga siendo instantánea. Para que quede
+  también en tu Sheet, actualízalo tú a mano en la Tabla, o impórtalo
+  después con **Importar Excel** usando un archivo que ya traiga esa
+  columna marcada.
+- **Subir a Google Drive** (opcional, todas las exportaciones): al
+  exportar CSV, Excel, PDF (tabla o tarjetas), o generar un Vale de
+  Entrega, la app pregunta si también quieres subir una copia a una
+  carpeta de tu Google Drive. Si aceptas, se sube usando tu propio Apps
+  Script (sin pedirte ningún login adicional) — funciona desde cualquier
+  dispositivo o navegador, a diferencia de la "Carpeta de vales" local que
+  es solo Chrome/Edge de escritorio. Requiere configurar `FOLDER_ID` en
+  `Code.gs` (ver paso 4); si no lo configuras, simplemente no ofrece subir
+  nada distinto a lo normal.
+- **Carpeta de vales** (solo administradores, Chrome/Edge de escritorio):
+  botón **"Carpeta de vales"** para elegir una carpeta una sola vez; desde
+  ahí, cada Vale de Entrega que generes se guarda directo ahí, sin mostrar
+  el diálogo de descarga de tu navegador. En Safari, la mayoría de
+  navegadores de celular, u otros sin esta función, el botón te avisa que
+  no está disponible y los vales se descargan normal como antes. Nota: la
+  carpeta elegida se recuerda solo mientras la pestaña sigue abierta —
+  hay que volver a elegirla si recargas la página.
 
 ## Notas y límites a tener en cuenta
 

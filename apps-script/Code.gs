@@ -19,11 +19,20 @@
  * 7. Cada vez que edites este script, tienes que crear una
  *    "Nueva implementación" (o gestionar implementaciones >
  *    editar > nueva versión) para que los cambios se publiquen.
+ *
+ * SUBIR EXPORTACIONES A GOOGLE DRIVE (opcional):
+ * 1. Crea (o elige) una carpeta en tu Google Drive.
+ * 2. Ábrela y copia el ID de la URL:
+ *    drive.google.com/drive/folders/ESTE-ES-EL-ID
+ * 3. Pégalo abajo en FOLDER_ID, reemplazando el texto de ejemplo.
+ * 4. Vuelve a implementar (nueva versión) — Google te pedirá autorizar
+ *    un permiso nuevo (acceso a Drive) la primera vez.
  */
 
 const SHEET_NAME = 'PLACAS';   // nombre de la pestaña con los datos
 const HEADER_ROW = 1;          // fila donde están los encabezados
 const FIRST_DATA_ROW = 2;      // primera fila con datos
+const FOLDER_ID = 'PON_AQUI_EL_ID_DE_TU_CARPETA_DE_DRIVE'; // ← reemplaza esto
 
 // Columnas fijas (A-H) + columnas editables (I-L) + auditoría opcional (M-N)
 // + entrega (O)
@@ -59,7 +68,7 @@ function doGet(e) {
   }
 }
 
-/** POST: body JSON = { action: 'updateRow', item, pqtDW, pqtBW, gqe, obs, entregado, editor } */
+/** POST: body JSON = { action: 'updateRow'|'uploadFile', ... } */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -68,11 +77,34 @@ function doPost(e) {
     if (body.action === 'updateRow') {
       return jsonOut_(updateRow_(body));
     }
+    if (body.action === 'uploadFile') {
+      return jsonOut_(uploadFile_(body));
+    }
     return jsonOut_({ ok: false, error: 'Acción desconocida: ' + body.action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
   } finally {
     lock.releaseLock();
+  }
+}
+
+/**
+ * Guarda un archivo (recibido en base64 desde la app) en la carpeta de
+ * Google Drive configurada en FOLDER_ID. Usado para subir copias de los
+ * PDF/Excel/CSV exportados desde la app.
+ */
+function uploadFile_(body) {
+  if (!FOLDER_ID || FOLDER_ID.indexOf('PON_AQUI') !== -1) {
+    return { ok: false, error: 'Falta configurar FOLDER_ID en Code.gs (carpeta de Google Drive).' };
+  }
+  try {
+    const folder = DriveApp.getFolderById(FOLDER_ID);
+    const bytes = Utilities.base64Decode(body.base64);
+    const blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', body.filename || 'archivo');
+    const file = folder.createFile(blob);
+    return { ok: true, fileId: file.getId(), url: file.getUrl() };
+  } catch (err) {
+    return { ok: false, error: String(err) };
   }
 }
 
