@@ -560,6 +560,21 @@ td input.gqe-input { width: 34px; text-align: center; text-transform: uppercase;
 .decision-btn.selected.decision-excel { background: var(--blue); color: #fff; border-color: var(--blue); }
 .decision-btn.selected.decision-current { background: var(--text-muted); color: #fff; border-color: var(--text-muted); }
 
+.drive-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.drive-upload-row input[type="file"] { flex: 1; min-width: 180px; font-size: 12.5px; color: var(--text-muted); }
+.drive-upload-btn { margin-top: 0; width: auto; padding: 9px 16px; }
+
+.drive-files-status { font-size: 12.5px; color: var(--text-muted); margin-bottom: 8px; }
+
+.drive-delete-btn { color: var(--red); border-color: var(--red); }
+.drive-delete-btn:hover { background: var(--red); color: #fff; }
+
 /* ---------- Footer ---------- */
 .app-footer {
   display: flex;

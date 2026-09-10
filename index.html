@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PLACAS-TAG DW / BW</title>
-<link rel="manifest" href="manifest.json?v=2.8.0">
+<link rel="manifest" href="manifest.json?v=3.0.0">
 <meta name="theme-color" content="#2563eb">
 <link rel="icon" href="assets/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="PLACAS-TAG DW/BW">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.8.0">
+<link rel="stylesheet" href="style.css?v=3.0.0">
 </head>
 <body>
 
@@ -120,10 +120,15 @@
           <option value="Y">Creados (Y)</option>
           <option value="">Sin marcar</option>
         </select>
-        <select id="filterEntregado">
-          <option value="">Entregado (todos)</option>
+        <select id="filterEntregadoDW">
+          <option value="">Entregado DW (todos)</option>
           <option value="Y">Entregados</option>
-          <option value="N">Pendientes de entregar</option>
+          <option value="N">Pendientes</option>
+        </select>
+        <select id="filterEntregadoBW">
+          <option value="">Entregado BW (todos)</option>
+          <option value="Y">Entregados</option>
+          <option value="N">Pendientes</option>
         </select>
         <div class="pkg-quick-filter" role="group" aria-label="Filtro rápido de tipo de paquete">
           <button type="button" class="pkg-quick-btn active" data-type="">Todos</button>
@@ -138,6 +143,7 @@
         <button id="exportPdfCardsBtn" class="btn-secondary">PDF (tarjetas por paquete)</button>
         <button id="generateValeBtn" class="btn-secondary admin-only">Generar Vale de Entrega</button>
         <button id="valeFolderBtn" class="btn-secondary admin-only">Carpeta de vales: ninguna</button>
+        <button id="driveFilesBtn" class="btn-secondary admin-only">Archivos en Drive</button>
       </div>
       <div class="results-count"><span id="resultsCount">0</span> resultados</div>
 
@@ -156,7 +162,8 @@
               <th>PQT DW</th>
               <th>PQT BW</th>
               <th>GQE</th>
-              <th>ENTREGADO</th>
+              <th>ENT. DW</th>
+              <th>ENT. BW</th>
               <th>OBS</th>
               <th class="admin-only-cell"></th>
             </tr>
@@ -179,6 +186,32 @@
     <span>By Gustavo developer</span>
     <span class="footer-version" id="footerVersionApp"></span>
   </footer>
+
+  <div id="driveFilesModal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <div>
+          <h3>Archivos en Google Drive</h3>
+          <p class="modal-subtitle">Carpeta configurada en tu Apps Script (FOLDER_ID).</p>
+        </div>
+        <button id="driveFilesCloseBtn" class="btn-icon" title="Cerrar">✕</button>
+      </div>
+
+      <div class="drive-upload-row">
+        <input id="driveUploadInput" type="file">
+        <button id="driveUploadBtn" class="btn-primary drive-upload-btn">Subir archivo</button>
+        <button id="driveRefreshBtn" class="btn-secondary">Actualizar lista</button>
+      </div>
+
+      <div id="driveFilesStatus" class="drive-files-status"></div>
+      <div class="table-wrap import-conflicts-wrap">
+        <table>
+          <thead><tr><th>Nombre</th><th>Tamaño</th><th>Actualizado</th><th></th></tr></thead>
+          <tbody id="driveFilesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <div id="importModal" class="modal-overlay hidden">
     <div class="modal-box modal-box-wide">
@@ -315,6 +348,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=2.8.0"></script>
+<script src="app.js?v=3.0.0"></script>
 </body>
 </html>

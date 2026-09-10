@@ -33,13 +33,14 @@ placas-app/
 4. Comprueba que la fila 1 tiene los encabezados: `ITEM, INSTALL, DISCIPLINE,
    SUBCONTRACTOR, TAG, SYSTEM, DESCRIPTION, LEVEL, PQT DW, PQT BW, GQE, OBS`
    y que los datos empiezan en la fila 2.
-5. La app añade tres columnas más a la derecha (**M: Editor**, **N:
-   Actualizado**, **O: Entregado**) automáticamente la primera vez que
-   alguien guarda un cambio, para saber quién tocó cada fila, cuándo, y si
-   esa placa ya fue entregada al subcontratista. Si quieres que la columna
-   O tenga encabezado, escribe "ENTREGADO" en O1 — la app funciona igual
-   aunque esa celda quede vacía. Es opcional: si no la quieres, bórrala de
-   `Code.gs` (línea con `ENTREGADO`).
+5. La app añade cuatro columnas más a la derecha (**M: Editor**, **N:
+   Actualizado**, **O: Entregado DW**, **P: Entregado BW**)
+   automáticamente la primera vez que alguien guarda un cambio, para saber
+   quién tocó cada fila, cuándo, y si esa placa ya fue entregada — por
+   separado para el área DW y para el área BW, ya que hay TAGs que tienen
+   ambos paquetes a la vez. Si quieres que las columnas tengan encabezado,
+   escribe "ENTREGADO_DW" en O1 y "ENTREGADO_BW" en P1 — la app funciona
+   igual aunque esas celdas queden vacías.
 
 ## 2. Publica el backend (Apps Script)
 
@@ -90,13 +91,22 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 
 ## 4. Sube la app a GitHub
 
-> ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
-> nuevo (agrega el contador de folios para el Vale de Entrega, y ahora
-> también la opción de subir archivos a Google Drive) y pégalo en tu Apps
-> Script, reemplazando todo el contenido anterior. Luego **Implementar >
-> Gestionar implementaciones > ✏️ (editar) > Versión: Nueva versión >
-> Implementar** — si solo guardas el script sin crear una nueva versión,
-> lo nuevo no va a funcionar.
+> ⚠️ **Cambio de estructura en tu Sheet: ahora hay DOS columnas de
+> Entregado.** Antes había una sola columna `ENTREGADO` (columna O). Como
+> algunos TAGs tienen paquete DW y BW a la vez, esa única columna era
+> ambigua. Ahora:
+> - **Columna O** pasa a ser **`ENTREGADO_DW`** — los valores que ya
+>   tenías ahí **se conservan tal cual**, no hay que mover nada. Si
+>   quieres, cambia el título de O1 a "ENTREGADO_DW".
+> - **Columna P** es nueva: **`ENTREGADO_BW`**, empieza vacía. Ponle el
+>   título "ENTREGADO_BW" en P1 si quieres.
+>
+> Copia el `Code.gs` nuevo (agregó la columna `ENTREGADO_BW`, el contador
+> de folios del Vale de Entrega, y subir/listar/eliminar en Drive) y
+> pégalo en tu Apps Script. Luego **Implementar > Gestionar
+> implementaciones > ✏️ (editar) > Versión: Nueva versión > Implementar**
+> — si solo guardas el script sin crear una nueva versión, lo nuevo no va
+> a funcionar.
 >
 > **Si quieres usar "Subir a Google Drive"** (opcional): antes de
 > redesplegar, crea o elige una carpeta en tu Drive, copia su ID desde la
@@ -106,13 +116,6 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 > normal, acéptalo. Si dejas `FOLDER_ID` sin configurar, esa opción
 > simplemente muestra un error si alguien intenta usarla; todo lo demás
 > sigue funcionando igual.
-
-> ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
-> nuevo (agregó la columna `ENTREGADO`) y pégalo en tu Apps Script,
-> reemplazando todo el contenido anterior. Luego **Implementar > Gestionar
-> implementaciones > ✏️ (editar) > Versión: Nueva versión > Implementar**
-> — si solo guardas el script sin crear una nueva versión, la app seguirá
-> usando el código viejo y la columna Entregado no se guardará.
 
 Arrastra **todo** el contenido de la carpeta `placas-app` (incluida la
 carpeta `assets/` con la imagen de fondo) a tu repositorio, tal como hiciste
@@ -144,18 +147,18 @@ configurar de su parte.
   **Todos / Solo DW / Solo BW** para filtrar por tipo de paquete sin tener
   que marcar cada número (muy útil en celular) — ambos comparten el mismo
   filtro. Los administradores editan `PQT DW`, `PQT BW`, `GQE`,
-  **`ENTREGADO`** y `OBS` en línea, con su propio botón **Guardar** por
+  **`ENTREGADO_DW`**, **`ENTREGADO_BW`** y `OBS` en línea, con su propio botón **Guardar** por
   fila (marca `Y` en Entregado cuando la placa ya se entregó al
   subcontratista — útil porque las entregas se hacen por partes). Los
   usuarios ven la tabla en modo solo lectura.
 - **Importar Excel** (solo administradores): para cuando prefieres llenar
-  `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO` u `OBS` en tu propio Excel (por
+  `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW` u `OBS` en tu propio Excel (por
   ejemplo tu archivo original con macros, porque ahí escribes más rápido) y
   después traer esos cambios a la app de una sola vez:
   1. Botón **"Importar Excel"** > elige el archivo (`.xlsx`, `.xls` o
      `.xlsm`) > **"Analizar archivo"**.
   2. La app busca cada fila por su **TAG** (no por ITEM) y compara
-     `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO` y `OBS` contra lo que ya está
+     `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW` y `OBS` contra lo que ya está
      guardado:
      - Si el campo estaba **vacío** en tu Sheet, lo rellena directo, sin
        preguntar.
@@ -168,7 +171,7 @@ configurar de su parte.
   3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet.
 
   Tu Excel de importación necesita al menos las columnas `TAG` y una o más
-  de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO`, `OBS` con esos nombres exactos
+  de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS` con esos nombres exactos
   en la primera fila — el resto de columnas (ITEM, INSTALL, DISCIPLINE...)
   pueden estar o no, la app las ignora para esta importación.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
@@ -176,7 +179,7 @@ configurar de su parte.
   traer los últimos cambios de tus compañeros.
 - **Exportar**:
   - **CSV**: todas las columnas, con los filtros que tengas aplicados.
-  - **Excel** (solo administradores): oculta `GQE` y `ENTREGADO` (son
+  - **Excel** (solo administradores): oculta `GQE`, `ENTREGADO_DW` y `ENTREGADO_BW` (son
     control interno del administrador) y, si el filtro de paquetes usa
     solo DW o solo BW, oculta también la otra columna de paquete. Siempre
     ordenado por número de paquete de menor a mayor.
@@ -235,6 +238,12 @@ configurar de su parte.
   también en tu Sheet, actualízalo tú a mano en la Tabla, o impórtalo
   después con **Importar Excel** usando un archivo que ya traiga esa
   columna marcada.
+- **Archivos en Drive** (solo administradores): botón que abre una lista
+  de todo lo que hay en la carpeta de Drive configurada (`FOLDER_ID`), con
+  nombre, tamaño, fecha, un enlace para abrir cada archivo en Drive, y un
+  botón para **eliminarlo** (lo manda a la papelera de Drive). También
+  permite **subir cualquier archivo** desde ahí, no solo exportaciones de
+  la app. Requiere `FOLDER_ID` configurado (ver paso 4).
 - **Subir a Google Drive** (opcional, todas las exportaciones): al
   exportar CSV, Excel, PDF (tabla o tarjetas), o generar un Vale de
   Entrega, la app pregunta si también quieres subir una copia a una

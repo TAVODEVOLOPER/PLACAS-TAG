@@ -35,12 +35,12 @@ const FIRST_DATA_ROW = 2;      // primera fila con datos
 const FOLDER_ID = '199wdC4Jt_lS17mTxQWIyQjfFBYC7e14_'; // ← reemplaza esto
 
 // Columnas fijas (A-H) + columnas editables (I-L) + auditoría opcional (M-N)
-// + entrega (O)
+// + entrega por área: O = ENTREGADO_DW, P = ENTREGADO_BW
 const COLS = {
   ITEM: 1, INSTALL: 2, DISCIPLINE: 3, SUBCONTRACTOR: 4, TAG: 5,
   SYSTEM: 6, DESCRIPTION: 7, LEVEL: 8,
   PQT_DW: 9, PQT_BW: 10, GQE: 11, OBS: 12,
-  EDITOR: 13, UPDATED_AT: 14, ENTREGADO: 15
+  EDITOR: 13, UPDATED_AT: 14, ENTREGADO_DW: 15, ENTREGADO_BW: 16
 };
 
 function getSheet_() {
@@ -55,20 +55,21 @@ function jsonOut_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET: ?action=getData | getSummary | nextValeNumber */
+/** GET: ?action=getData | getSummary | nextValeNumber | listDriveFiles */
 function doGet(e) {
   try {
     const action = (e.parameter.action || 'getData');
     if (action === 'getData') return jsonOut_(getData_());
     if (action === 'getSummary') return jsonOut_(getSummary_());
     if (action === 'nextValeNumber') return jsonOut_(getNextValeNumber_());
+    if (action === 'listDriveFiles') return jsonOut_(listDriveFiles_());
     return jsonOut_({ ok: false, error: 'Acción desconocida: ' + action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
   }
 }
 
-/** POST: body JSON = { action: 'updateRow'|'uploadFile', ... } */
+/** POST: body JSON = { action: 'updateRow'|'uploadFile'|'deleteFile', ... } */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -80,11 +81,66 @@ function doPost(e) {
     if (body.action === 'uploadFile') {
       return jsonOut_(uploadFile_(body));
     }
+    if (body.action === 'deleteFile') {
+      return jsonOut_(deleteDriveFile_(body));
+    }
     return jsonOut_({ ok: false, error: 'Acción desconocida: ' + body.action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
   } finally {
     lock.releaseLock();
+  }
+}
+
+/** Lista los archivos que hay en la carpeta de Drive configurada en FOLDER_ID. */
+function listDriveFiles_() {
+  if (!FOLDER_ID || FOLDER_ID.indexOf('PON_AQUI') !== -1) {
+    return { ok: false, error: 'Falta configurar FOLDER_ID en Code.gs (carpeta de Google Drive).' };
+  }
+  try {
+    const folder = DriveApp.getFolderById(FOLDER_ID);
+    const it = folder.getFiles();
+    const files = [];
+    while (it.hasNext()) {
+      const f = it.next();
+      files.push({
+        id: f.getId(),
+        name: f.getName(),
+        size: f.getSize(),
+        mimeType: f.getMimeType(),
+        updated: f.getLastUpdated().toISOString(),
+        url: f.getUrl()
+      });
+    }
+    files.sort(function (a, b) { return new Date(b.updated) - new Date(a.updated); });
+    return { ok: true, files: files };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
+/**
+ * Elimina (manda a la papelera de Drive) un archivo por su ID. Antes
+ * verifica que el archivo esté dentro de la carpeta configurada en
+ * FOLDER_ID, para que este endpoint no pueda borrar cualquier archivo de
+ * tu Drive por error o mal uso.
+ */
+function deleteDriveFile_(body) {
+  if (!FOLDER_ID || FOLDER_ID.indexOf('PON_AQUI') !== -1) {
+    return { ok: false, error: 'Falta configurar FOLDER_ID en Code.gs (carpeta de Google Drive).' };
+  }
+  try {
+    const file = DriveApp.getFileById(body.fileId);
+    const parents = file.getParents();
+    let belongs = false;
+    while (parents.hasNext()) {
+      if (parents.next().getId() === FOLDER_ID) { belongs = true; break; }
+    }
+    if (!belongs) return { ok: false, error: 'Ese archivo no pertenece a la carpeta configurada en FOLDER_ID.' };
+    file.setTrashed(true);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
   }
 }
 
@@ -115,7 +171,7 @@ function getData_() {
   if (lastRow < FIRST_DATA_ROW) return { ok: true, rows: [] };
 
   const numRows = lastRow - FIRST_DATA_ROW + 1;
-  const values = sheet.getRange(FIRST_DATA_ROW, 1, numRows, 15).getValues();
+  const values = sheet.getRange(FIRST_DATA_ROW, 1, numRows, 16).getValues();
 
   const rows = [];
   for (let idx = 0; idx < values.length; idx++) {
@@ -135,7 +191,8 @@ function getData_() {
       bw: v[COLS.PQT_BW - 1],
       g: v[COLS.GQE - 1],
       o: v[COLS.OBS - 1],
-      ent: v[COLS.ENTREGADO - 1],
+      edw: v[COLS.ENTREGADO_DW - 1],
+      ebw: v[COLS.ENTREGADO_BW - 1],
       ed: v[COLS.EDITOR - 1] || '',
       up: v[COLS.UPDATED_AT - 1] || ''
     });
@@ -199,7 +256,7 @@ function getNextValeNumber_() {
   }
 }
 
-/** Actualiza PQT DW / PQT BW / GQE / OBS / ENTREGADO de una fila, localizándola por ITEM. */
+/** Actualiza PQT DW / PQT BW / GQE / OBS / ENTREGADO_DW / ENTREGADO_BW de una fila, localizándola por ITEM. */
 function updateRow_(body) {
   const sheet = getSheet_();
   const lastRow = sheet.getLastRow();
@@ -221,7 +278,8 @@ function updateRow_(body) {
   if (body.pqtBW !== undefined) sheet.getRange(targetRow, COLS.PQT_BW).setValue(body.pqtBW);
   if (body.gqe !== undefined) sheet.getRange(targetRow, COLS.GQE).setValue(body.gqe);
   if (body.obs !== undefined) sheet.getRange(targetRow, COLS.OBS).setValue(body.obs);
-  if (body.entregado !== undefined) sheet.getRange(targetRow, COLS.ENTREGADO).setValue(body.entregado);
+  if (body.entregadoDW !== undefined) sheet.getRange(targetRow, COLS.ENTREGADO_DW).setValue(body.entregadoDW);
+  if (body.entregadoBW !== undefined) sheet.getRange(targetRow, COLS.ENTREGADO_BW).setValue(body.entregadoBW);
 
   const now = new Date().toISOString();
   sheet.getRange(targetRow, COLS.EDITOR).setValue(body.editor || '');

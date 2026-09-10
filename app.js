@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v2.8.0';
+const APP_VERSION = 'v3.0.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -327,7 +327,7 @@ function openPackageModal(field, key) {
         <td>${escapeHtml(row.sys)}</td>
         <td class="desc-cell" title="${escapeHtml(row.desc)}">${escapeHtml(row.desc)}</td>
         <td>${escapeHtml(row.lvl)}</td>
-        <td>${escapeHtml(row.ent)}</td>
+        <td>${escapeHtml(field === 'dw' ? row.edw : row.ebw)}</td>
         <td>${escapeHtml(row.o)}</td>
       </tr>
     `).join('');
@@ -488,7 +488,7 @@ document.getElementById('pickerClearBtn').addEventListener('click', () => {
   applyFilters();
 });
 
-['searchInput', 'filterDiscipline', 'filterSubcontractor', 'filterEstado', 'filterGQE', 'filterEntregado'].forEach(id => {
+['searchInput', 'filterDiscipline', 'filterSubcontractor', 'filterEstado', 'filterGQE', 'filterEntregadoDW', 'filterEntregadoBW'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => { state.page = 1; applyFilters(); });
 });
 
@@ -498,7 +498,8 @@ function applyFilters() {
   const sub = document.getElementById('filterSubcontractor').value;
   const estado = document.getElementById('filterEstado').value;
   const gqeFilter = document.getElementById('filterGQE').value;
-  const entregadoFilter = document.getElementById('filterEntregado').value;
+  const entDWFilter = document.getElementById('filterEntregadoDW').value;
+  const entBWFilter = document.getElementById('filterEntregadoBW').value;
   const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
 
   state.filtered = state.rows.filter(row => {
@@ -513,9 +514,13 @@ function applyFilters() {
 
     if (gqeFilter === 'Y' && String(row.g).toUpperCase() !== 'Y') return false;
 
-    const entregada = String(row.ent).toUpperCase() === 'Y';
-    if (entregadoFilter === 'Y' && !entregada) return false;
-    if (entregadoFilter === 'N' && entregada) return false;
+    const entregadaDW = String(row.edw).toUpperCase() === 'Y';
+    if (entDWFilter === 'Y' && !entregadaDW) return false;
+    if (entDWFilter === 'N' && entregadaDW) return false;
+
+    const entregadaBW = String(row.ebw).toUpperCase() === 'Y';
+    if (entBWFilter === 'Y' && !entregadaBW) return false;
+    if (entBWFilter === 'N' && entregadaBW) return false;
 
     if (hasPkgFilter) {
       const matchesDW = state.selectedDW.size > 0 && hasDW && state.selectedDW.has(String(row.dw));
@@ -568,7 +573,8 @@ function readonlyRowHtml(row) {
       <td class="readonly-cell">${escapeHtml(row.dw)}</td>
       <td class="readonly-cell">${escapeHtml(row.bw)}</td>
       <td class="readonly-cell">${escapeHtml(row.g)}</td>
-      <td class="readonly-cell">${escapeHtml(row.ent)}</td>
+      <td class="readonly-cell">${escapeHtml(row.edw)}</td>
+      <td class="readonly-cell">${escapeHtml(row.ebw)}</td>
       <td>${escapeHtml(row.o)}</td>
       <td></td>
     </tr>
@@ -589,7 +595,8 @@ function editableRowHtml(row) {
       <td><input class="editable" data-field="dw" type="text" value="${escapeHtml(row.dw)}"></td>
       <td><input class="editable" data-field="bw" type="text" value="${escapeHtml(row.bw)}"></td>
       <td><input class="editable gqe-input" data-field="g" type="text" maxlength="1" value="${escapeHtml(row.g)}"></td>
-      <td><input class="editable gqe-input" data-field="ent" type="text" maxlength="1" value="${escapeHtml(row.ent)}"></td>
+      <td><input class="editable gqe-input" data-field="edw" type="text" maxlength="1" value="${escapeHtml(row.edw)}"></td>
+      <td><input class="editable gqe-input" data-field="ebw" type="text" maxlength="1" value="${escapeHtml(row.ebw)}"></td>
       <td><input class="editable obs-input" data-field="o" type="text" value="${escapeHtml(row.o)}"></td>
       <td><button class="row-save-btn">Guardar</button></td>
     </tr>
@@ -616,7 +623,8 @@ async function onSaveRow(e) {
     pqtDW: tr.querySelector('[data-field="dw"]').value.trim(),
     pqtBW: tr.querySelector('[data-field="bw"]').value.trim(),
     gqe: tr.querySelector('[data-field="g"]').value.trim().toUpperCase(),
-    entregado: tr.querySelector('[data-field="ent"]').value.trim().toUpperCase(),
+    entregadoDW: tr.querySelector('[data-field="edw"]').value.trim().toUpperCase(),
+    entregadoBW: tr.querySelector('[data-field="ebw"]').value.trim().toUpperCase(),
     obs: tr.querySelector('[data-field="o"]').value.trim(),
     editor: state.userName
   };
@@ -631,7 +639,8 @@ async function onSaveRow(e) {
       rowObj.dw = payload.pqtDW;
       rowObj.bw = payload.pqtBW;
       rowObj.g = payload.gqe;
-      rowObj.ent = payload.entregado;
+      rowObj.edw = payload.entregadoDW;
+      rowObj.ebw = payload.entregadoBW;
       rowObj.o = payload.obs;
       saveCache(state.rows);
     }
@@ -661,12 +670,12 @@ document.getElementById('nextPageBtn').addEventListener('click', () => {
 
 const APP_TITLE = 'PLACAS-TAG DW / BW';
 
-const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'ENTREGADO', 'OBS'];
-// El PDF de tabla no incluye ENTREGADO (se pidió quitarlo de los PDF).
-const PDF_TABLE_HEADERS = EXPORT_HEADERS.filter(h => h !== 'ENTREGADO');
+const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'ENTREGADO_DW', 'ENTREGADO_BW', 'OBS'];
+// El PDF de tabla no incluye ENTREGADO_DW/BW (se pidió quitarlas de los PDF).
+const PDF_TABLE_HEADERS = EXPORT_HEADERS.filter(h => h !== 'ENTREGADO_DW' && h !== 'ENTREGADO_BW');
 
 function exportRowsAsArrays() {
-  return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.ent, row.o]);
+  return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.edw, row.ebw, row.o]);
 }
 
 // Ordena por número de paquete (DW o el que tenga la fila) de menor a mayor;
@@ -735,7 +744,8 @@ const IMPORT_FIELD_MAP = [
   { header: 'PQT DW', field: 'dw', apiKey: 'pqtDW', label: 'PQT DW' },
   { header: 'PQT BW', field: 'bw', apiKey: 'pqtBW', label: 'PQT BW' },
   { header: 'GQE', field: 'g', apiKey: 'gqe', label: 'GQE' },
-  { header: 'ENTREGADO', field: 'ent', apiKey: 'entregado', label: 'ENTREGADO' },
+  { header: 'ENTREGADO_DW', field: 'edw', apiKey: 'entregadoDW', label: 'ENTREGADO DW' },
+  { header: 'ENTREGADO_BW', field: 'ebw', apiKey: 'entregadoBW', label: 'ENTREGADO BW' },
   { header: 'OBS', field: 'o', apiKey: 'obs', label: 'OBS' }
 ];
 
@@ -828,7 +838,7 @@ function analyzeImport(dataRows, tagIdx, fieldIdx) {
       if (!excelVal) return; // celda vacía en excel = no tocar ese campo
 
       const currentVal = normVal(row[f.field]);
-      const isFlag = f.field === 'g' || f.field === 'ent';
+      const isFlag = f.field === 'g' || f.field === 'edw' || f.field === 'ebw';
       const excelCmp = isFlag ? excelVal.toUpperCase() : excelVal;
       const currentCmp = isFlag ? currentVal.toUpperCase() : currentVal;
 
@@ -969,11 +979,15 @@ document.getElementById('generateValeBtn').addEventListener('click', () => {
 });
 
 function openValeModal(rows) {
-  const entregados = rows.filter(r => String(r.ent).toUpperCase() === 'Y').length;
+  const entregados = rows.filter(r => {
+    const hasDW = r.dw !== '' && r.dw !== null && r.dw !== undefined;
+    const hasBW = r.bw !== '' && r.bw !== null && r.bw !== undefined;
+    return (hasDW && String(r.edw).toUpperCase() === 'Y') || (hasBW && String(r.ebw).toUpperCase() === 'Y');
+  }).length;
 
   const modal = document.getElementById('deliveryModal');
   document.getElementById('deliveryModalSubtitle').textContent =
-    `Este vale incluirá ${rows.length} TAG(s) (${entregados} ya marcado(s) como entregado(s) en la tabla). No modifica la columna ENTREGADO — eso lo marcas tú manualmente en la Tabla.`;
+    `Este vale incluirá ${rows.length} TAG(s) (${entregados} ya marcado(s) como entregado(s) en la tabla). No modifica ENTREGADO_DW/BW — eso lo marcas tú manualmente en la Tabla.`;
   document.getElementById('deliveryOrigen').value = localStorage.getItem('placas_almacen_origen') || '';
   document.getElementById('deliveryDestino').value = localStorage.getItem('placas_almacen_destino') || '';
   document.getElementById('deliveryEntrego').value = state.userName || '';
@@ -1063,6 +1077,95 @@ async function saveFileToValeFolder(filename, blob) {
     return false;
   }
 }
+
+// ---------------- Archivos en Google Drive (ver, agregar, eliminar) ----------------
+// Usa listDriveFiles / uploadFile / deleteFile en Code.gs, sobre la carpeta
+// configurada en FOLDER_ID. Requiere que esa constante esté configurada.
+
+document.getElementById('driveFilesBtn').addEventListener('click', () => {
+  document.getElementById('driveFilesModal').classList.remove('hidden');
+  loadDriveFiles();
+});
+document.getElementById('driveFilesCloseBtn').addEventListener('click', () => {
+  document.getElementById('driveFilesModal').classList.add('hidden');
+});
+document.getElementById('driveFilesModal').addEventListener('click', (e) => {
+  if (e.target.id === 'driveFilesModal') e.currentTarget.classList.add('hidden');
+});
+document.getElementById('driveRefreshBtn').addEventListener('click', loadDriveFiles);
+
+async function loadDriveFiles() {
+  const status = document.getElementById('driveFilesStatus');
+  const tbody = document.getElementById('driveFilesBody');
+  status.textContent = 'Cargando…';
+  tbody.innerHTML = '';
+  try {
+    const data = await apiGet('listDriveFiles');
+    if (!data.ok) { status.textContent = data.error || 'No se pudo cargar la lista.'; return; }
+    status.textContent = `${data.files.length} archivo(s)`;
+    tbody.innerHTML = data.files.map(f => `
+      <tr data-id="${escapeHtml(f.id)}">
+        <td class="tag-cell" title="${escapeHtml(f.name)}">
+          <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+        </td>
+        <td>${formatFileSize(f.size)}</td>
+        <td>${new Date(f.updated).toLocaleString('es-ES')}</td>
+        <td><button class="row-save-btn drive-delete-btn" data-id="${escapeHtml(f.id)}">Eliminar</button></td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('.drive-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => deleteDriveFileUI(btn.dataset.id, btn));
+    });
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0, size = Number(bytes);
+  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+  return `${size.toFixed(i > 0 && size < 10 ? 1 : 0)} ${units[i]}`;
+}
+
+async function deleteDriveFileUI(fileId, btn) {
+  const confirmed = window.confirm('¿Eliminar este archivo de tu Google Drive? Quedará en la papelera de Drive (no se puede deshacer desde la app).');
+  if (!confirmed) return;
+  btn.textContent = 'Eliminando…';
+  try {
+    const result = await apiPost({ action: 'deleteFile', fileId });
+    if (result.ok) {
+      showToast('Archivo eliminado.', 'success');
+      loadDriveFiles();
+    } else {
+      showToast('No se pudo eliminar: ' + (result.error || 'error desconocido'), 'error');
+      btn.textContent = 'Eliminar';
+    }
+  } catch (e) {
+    showToast('No se pudo eliminar: ' + e.message, 'error');
+    btn.textContent = 'Eliminar';
+  }
+}
+
+document.getElementById('driveUploadBtn').addEventListener('click', async () => {
+  const file = document.getElementById('driveUploadInput').files[0];
+  if (!file) { showToast('Elige un archivo primero.', 'error'); return; }
+  showToast('Subiendo…', 'success');
+  try {
+    const base64 = await blobToBase64(file);
+    const result = await apiPost({ action: 'uploadFile', filename: file.name, mimeType: file.type || 'application/octet-stream', base64 });
+    if (result.ok) {
+      showToast('Archivo subido.', 'success');
+      document.getElementById('driveUploadInput').value = '';
+      loadDriveFiles();
+    } else {
+      showToast('No se pudo subir: ' + (result.error || 'error desconocido'), 'error');
+    }
+  } catch (e) {
+    showToast('No se pudo subir: ' + e.message, 'error');
+  }
+});
 
 async function apiGetNextValeNumber() {
   try {
@@ -1333,13 +1436,23 @@ function addPdfFooter(doc) {
 
 // Marca como "Entregado" SOLO en la app (memoria + caché del navegador), sin
 // llamar al backend — así es instantáneo. El Sheet se actualiza después a
-// mano o importando un Excel. Solo pregunta si hay un filtro de paquetes
-// activo, el usuario es administrador, y quedan TAGs pendientes.
+// mano o importando un Excel. Marca ENTREGADO_DW y/o ENTREGADO_BW según a
+// qué área pertenece cada TAG y qué filtro de paquetes esté activo.
 function maybeMarkDeliveredLocally(rows) {
   const hasPkgFilter = state.selectedDW.size > 0 || state.selectedBW.size > 0;
   if (state.role !== 'admin' || !hasPkgFilter) return rows;
 
-  const pendientes = rows.filter(r => String(r.ent).toUpperCase() !== 'Y');
+  const includeDW = state.selectedDW.size > 0 || state.selectedBW.size === 0;
+  const includeBW = state.selectedBW.size > 0;
+
+  const pendientes = [];
+  rows.forEach(row => {
+    const hasDW = row.dw !== '' && row.dw !== null && row.dw !== undefined;
+    const hasBW = row.bw !== '' && row.bw !== null && row.bw !== undefined;
+    const needsDW = hasDW && includeDW && String(row.edw).toUpperCase() !== 'Y';
+    const needsBW = hasBW && includeBW && String(row.ebw).toUpperCase() !== 'Y';
+    if (needsDW || needsBW) pendientes.push({ row, needsDW, needsBW });
+  });
   if (pendientes.length === 0) return rows;
 
   const wantsMark = window.confirm(
@@ -1348,10 +1461,14 @@ function maybeMarkDeliveredLocally(rows) {
     `Actualiza el Sheet después a mano o importando un Excel con ese estado.`
   );
   if (wantsMark) {
-    pendientes.forEach(row => {
-      row.ent = 'Y';
+    pendientes.forEach(({ row, needsDW, needsBW }) => {
+      if (needsDW) row.edw = 'Y';
+      if (needsBW) row.ebw = 'Y';
       const master = state.rows.find(x => x.r === row.r);
-      if (master) master.ent = 'Y';
+      if (master) {
+        if (needsDW) master.edw = 'Y';
+        if (needsBW) master.ebw = 'Y';
+      }
     });
     saveCache(state.rows);
     renderDashboard();
@@ -1466,7 +1583,8 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
 
   groupList.forEach(([key, group]) => {
     const total = group.rows.length;
-    const entregados = group.rows.filter(r => String(r.ent).toUpperCase() === 'Y').length;
+    const entField = group.suffix === 'DW' ? 'edw' : (group.suffix === 'BW' ? 'ebw' : null);
+    const entregados = entField ? group.rows.filter(r => String(r[entField]).toUpperCase() === 'Y').length : 0;
     const pct = total ? Math.round((entregados / total) * 100) : 0;
     const c = chipColorFor(key === 'SIN' ? 'sin' : group.num);
     const rgb = hexToRgb(c.fg);
