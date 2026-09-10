@@ -32,7 +32,7 @@
 const SHEET_NAME = 'PLACAS';   // nombre de la pestaña con los datos
 const HEADER_ROW = 1;          // fila donde están los encabezados
 const FIRST_DATA_ROW = 2;      // primera fila con datos
-const FOLDER_ID = '199wdC4Jt_lS17mTxQWIyQjfFBYC7e14_'; // ← reemplaza esto
+const FOLDER_ID = '199wdC4Jt_lS17mTxQWIyQjfFBYC7e14_';
 
 // Columnas fijas (A-H) + columnas editables (I-L) + auditoría opcional (M-N)
 // + entrega por área: O = ENTREGADO_DW, P = ENTREGADO_BW
@@ -42,6 +42,23 @@ const COLS = {
   PQT_DW: 9, PQT_BW: 10, GQE: 11, OBS: 12,
   EDITOR: 13, UPDATED_AT: 14, ENTREGADO_DW: 15, ENTREGADO_BW: 16
 };
+
+/**
+ * SOLO PARA TI (Gustavo): selecciona esta función "authorize" en el menú
+ * desplegable de arriba (junto al botón ▶ Ejecutar) y pulsa Ejecutar UNA
+ * vez. Su único objetivo es forzar la pantalla de autorización de Google
+ * para que incluya el permiso de Drive (las funciones con "_" al final,
+ * como listDriveFiles_, no aparecen en ese menú porque Apps Script las
+ * trata como privadas). Si corre sin errores y ves "Autorización OK" en
+ * el registro de ejecución, ya quedó todo permitido.
+ */
+function authorize() {
+  SpreadsheetApp.getActiveSpreadsheet().getName(); // fuerza el permiso de la Sheet
+  if (FOLDER_ID && FOLDER_ID.indexOf('PON_AQUI') === -1) {
+    DriveApp.getFolderById(FOLDER_ID).getName(); // fuerza el permiso de Drive
+  }
+  Logger.log('Autorización OK');
+}
 
 function getSheet_() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
