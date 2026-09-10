@@ -157,17 +157,21 @@ configurar de su parte.
   después traer esos cambios a la app de una sola vez:
   1. Botón **"Importar Excel"** > elige el archivo (`.xlsx`, `.xls` o
      `.xlsm`) > **"Analizar archivo"**.
-  2. La app busca cada fila por su **TAG** (no por ITEM) y compara
-     `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW` y `OBS` contra lo que ya está
-     guardado:
+  2. La app busca cada fila primero por su **ITEM** (es único, así que
+     nunca hay ambigüedad); si esa fila no trae ITEM o no lo encuentra,
+     busca por **TAG** como respaldo. Compara `PQT DW`, `PQT BW`, `GQE`,
+     `ENTREGADO_DW`, `ENTREGADO_BW` y `OBS` contra lo que ya está guardado:
      - Si el campo estaba **vacío** en tu Sheet, lo rellena directo, sin
        preguntar.
      - Si el campo **ya tenía un valor distinto**, lo lista como
        conflicto para que decidas, fila por fila o con los botones
        "Usar Excel en todos" / "Mantener actual en todos".
-     - Los TAGs del Excel que no existen en tu Sheet, o que están
-       duplicados en tu Sheet, se omiten y se informan en el resumen (no
-       crea TAGs nuevos ni adivina cuál actualizar si hay duplicados).
+     - Emparejar por ITEM resuelve los TAGs duplicados que tienes en tu
+       Sheet (los que aparecen en más de una fila) — cada ITEM identifica
+       una sola fila sin ambigüedad. Solo se omiten e informan en el
+       resumen los casos donde ni el ITEM ni el TAG se encuentran, o
+       donde el TAG está duplicado y tampoco vino el ITEM para
+       desambiguar (no crea TAGs nuevos en ningún caso).
   3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet, y al
      terminar descarga automáticamente un **reporte en CSV**
      (`reporte_importacion_...csv`) con el detalle completo: cada TAG,

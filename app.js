@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.4.0';
+const APP_VERSION = 'v3.5.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -799,6 +799,7 @@ document.getElementById('importAnalyzeBtn').addEventListener('click', async () =
       return;
     }
     const tagIdx = headerRow.indexOf('TAG');
+    const itemIdx = headerRow.indexOf('ITEM');
 
     const fieldIdx = {};
     IMPORT_FIELD_MAP.forEach(f => {
@@ -810,7 +811,7 @@ document.getElementById('importAnalyzeBtn').addEventListener('click', async () =
       return;
     }
 
-    importAnalysis = analyzeImport(aoa.slice(headerRowIdx + 1), tagIdx, fieldIdx);
+    importAnalysis = analyzeImport(aoa.slice(headerRowIdx + 1), tagIdx, itemIdx, fieldIdx);
     renderImportReview(importAnalysis);
     document.getElementById('importStepFile').classList.add('hidden');
     document.getElementById('importStepReview').classList.remove('hidden');
@@ -823,13 +824,20 @@ function normVal(v) {
   return (v === null || v === undefined) ? '' : String(v).trim();
 }
 
-function analyzeImport(dataRows, tagIdx, fieldIdx) {
+function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx) {
   // TAG -> filas vivas que lo tienen (para detectar duplicados en la hoja actual)
   const byTag = {};
   state.rows.forEach(row => {
     const t = normVal(row.tag);
     if (!t) return;
     (byTag[t] = byTag[t] || []).push(row);
+  });
+  // ITEM -> fila viva (el ITEM es único, así que no hay ambigüedad como con TAG)
+  const byItem = {};
+  state.rows.forEach(row => {
+    const it = normVal(row.i);
+    if (!it) return;
+    (byItem[it] = byItem[it] || []).push(row);
   });
 
   const autoApply = [];
@@ -840,13 +848,22 @@ function analyzeImport(dataRows, tagIdx, fieldIdx) {
 
   dataRows.forEach(r => {
     const tag = normVal(r[tagIdx]);
-    if (!tag) return;
+    const item = itemIdx !== -1 ? normVal(r[itemIdx]) : '';
+    if (!tag && !item) return;
     totalExcelRows++;
 
-    const matches = byTag[tag];
-    if (!matches || matches.length === 0) { notFound.push(tag); return; }
-    if (matches.length > 1) { duplicates.push(tag); return; }
-    const row = matches[0];
+    // Primero por ITEM (único, sin ambigüedad); si no viene o no se
+    // encuentra, usamos el TAG como respaldo (con su misma lógica de
+    // duplicados de siempre).
+    let row = null;
+    if (item && byItem[item] && byItem[item].length === 1) {
+      row = byItem[item][0];
+    } else {
+      const matches = tag ? byTag[tag] : null;
+      if (!matches || matches.length === 0) { notFound.push(item || tag); return; }
+      if (matches.length > 1) { duplicates.push(item || tag); return; }
+      row = matches[0];
+    }
 
     IMPORT_FIELD_MAP.forEach(f => {
       if (fieldIdx[f.field] === undefined) return; // esa columna no vino en el excel
