@@ -46,18 +46,21 @@ const COLS = {
 /**
  * SOLO PARA TI (Gustavo): selecciona esta función "authorize" en el menú
  * desplegable de arriba (junto al botón ▶ Ejecutar) y pulsa Ejecutar UNA
- * vez. Su único objetivo es forzar la pantalla de autorización de Google
- * para que incluya el permiso de Drive (las funciones con "_" al final,
- * como listDriveFiles_, no aparecen en ese menú porque Apps Script las
- * trata como privadas). Si corre sin errores y ves "Autorización OK" en
- * el registro de ejecución, ya quedó todo permitido.
+ * vez. Fuerza la pantalla de autorización de Google para que incluya
+ * permiso de Drive de LECTURA Y ESCRITURA (crea y borra un archivo de
+ * prueba en tu carpeta) — las funciones con "_" al final, como
+ * listDriveFiles_, no aparecen en ese menú porque Apps Script las trata
+ * como privadas. Si corre sin errores y ves "Autorización OK (lectura y
+ * escritura)" en el registro de ejecución, ya quedó todo permitido.
  */
 function authorize() {
   SpreadsheetApp.getActiveSpreadsheet().getName(); // fuerza el permiso de la Sheet
   if (FOLDER_ID && FOLDER_ID.indexOf('PON_AQUI') === -1) {
-    DriveApp.getFolderById(FOLDER_ID).getName(); // fuerza el permiso de Drive
+    const folder = DriveApp.getFolderById(FOLDER_ID); // fuerza permiso de lectura en Drive
+    const testFile = folder.createFile('prueba-autorizacion.txt', 'esto se puede borrar'); // fuerza permiso de escritura
+    testFile.setTrashed(true); // limpia el archivo de prueba
   }
-  Logger.log('Autorización OK');
+  Logger.log('Autorización OK (lectura y escritura)');
 }
 
 function getSheet_() {

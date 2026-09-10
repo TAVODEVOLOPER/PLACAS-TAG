@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.2.0';
+const APP_VERSION = 'v3.3.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -775,13 +775,30 @@ document.getElementById('importAnalyzeBtn').addEventListener('click', async () =
   try {
     const buffer = await file.arrayBuffer();
     const wb = XLSX.read(buffer, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
+
+    // Si hay una pestaña llamada "PLACAS" (o parecido), la preferimos sobre
+    // la primera pestaña del archivo — útil cuando el libro tiene otras
+    // hojas (resúmenes, buscadores, etc.) antes de la de datos.
+    const placasSheetName = wb.SheetNames.find(n => n.trim().toUpperCase().includes('PLACAS')) || wb.SheetNames[0];
+    const ws = wb.Sheets[placasSheetName];
     const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
     if (aoa.length < 2) { showToast('El archivo no tiene filas de datos.', 'error'); return; }
 
-    const headerRow = aoa[0].map(h => String(h).trim().toUpperCase());
+    // Busca en las primeras filas cuál es la fila de encabezados (la que
+    // contiene "TAG"), en vez de asumir que siempre es la fila 1 — así
+    // funciona aunque tu Excel tenga buscadores/cuadros arriba de la tabla.
+    const MAX_HEADER_SCAN = 30;
+    let headerRowIdx = -1;
+    let headerRow = null;
+    for (let i = 0; i < Math.min(aoa.length, MAX_HEADER_SCAN); i++) {
+      const candidate = aoa[i].map(h => String(h).trim().toUpperCase());
+      if (candidate.includes('TAG')) { headerRowIdx = i; headerRow = candidate; break; }
+    }
+    if (headerRowIdx === -1) {
+      showToast(`No encontré una fila con la columna "TAG" en las primeras ${MAX_HEADER_SCAN} filas del archivo.`, 'error');
+      return;
+    }
     const tagIdx = headerRow.indexOf('TAG');
-    if (tagIdx === -1) { showToast('No encontré la columna TAG en la primera fila del archivo.', 'error'); return; }
 
     const fieldIdx = {};
     IMPORT_FIELD_MAP.forEach(f => {
@@ -793,7 +810,7 @@ document.getElementById('importAnalyzeBtn').addEventListener('click', async () =
       return;
     }
 
-    importAnalysis = analyzeImport(aoa.slice(1), tagIdx, fieldIdx);
+    importAnalysis = analyzeImport(aoa.slice(headerRowIdx + 1), tagIdx, fieldIdx);
     renderImportReview(importAnalysis);
     document.getElementById('importStepFile').classList.add('hidden');
     document.getElementById('importStepReview').classList.remove('hidden');

@@ -170,10 +170,17 @@ configurar de su parte.
        crea TAGs nuevos ni adivina cuál actualizar si hay duplicados).
   3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet.
 
-  Tu Excel de importación necesita al menos las columnas `TAG` y una o más
-  de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS` con esos nombres exactos
-  en la primera fila — el resto de columnas (ITEM, INSTALL, DISCIPLINE...)
-  pueden estar o no, la app las ignora para esta importación.
+  Tu Excel de importación necesita al menos la columna `TAG` y una o más
+  de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS` con
+  esos nombres exactos — pero **no tienen que estar en la fila 1**: la app
+  busca automáticamente en las primeras 30 filas cuál es la fila de
+  encabezados (la que contiene "TAG"), así que funciona igual si tu Excel
+  tiene buscadores, títulos o celdas combinadas arriba de la tabla, como
+  el archivo original con macros. Si el libro tiene varias pestañas,
+  prefiere una que se llame "PLACAS" (o que contenga esa palabra); si no
+  encuentra ninguna, usa la primera pestaña. El resto de columnas (ITEM,
+  INSTALL, DISCIPLINE...) pueden estar o no, la app las ignora para esta
+  importación.
 - **Multiusuario**: el backend usa un bloqueo (`LockService`) al escribir,
   así que dos guardados simultáneos no se pisan entre sí. Pulsa **⟳** para
   traer los últimos cambios de tus compañeros.
