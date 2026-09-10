@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.0.0';
+const APP_VERSION = 'v3.1.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -671,8 +671,8 @@ document.getElementById('nextPageBtn').addEventListener('click', () => {
 const APP_TITLE = 'PLACAS-TAG DW / BW';
 
 const EXPORT_HEADERS = ['ITEM', 'INSTALL', 'DISCIPLINE', 'SUBCONTRACTOR', 'TAG', 'SYSTEM', 'DESCRIPTION', 'LEVEL', 'PQT DW', 'PQT BW', 'GQE', 'ENTREGADO_DW', 'ENTREGADO_BW', 'OBS'];
-// El PDF de tabla no incluye ENTREGADO_DW/BW (se pidió quitarlas de los PDF).
-const PDF_TABLE_HEADERS = EXPORT_HEADERS.filter(h => h !== 'ENTREGADO_DW' && h !== 'ENTREGADO_BW');
+// El PDF de tabla no incluye ITEM (para que el TAG entre en una sola línea) ni ENTREGADO_DW/BW.
+const PDF_TABLE_HEADERS = EXPORT_HEADERS.filter(h => h !== 'ENTREGADO_DW' && h !== 'ENTREGADO_BW' && h !== 'ITEM');
 
 function exportRowsAsArrays() {
   return state.filtered.map(row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.edw, row.ebw, row.o]);
@@ -1499,14 +1499,14 @@ document.getElementById('exportPdfBtn').addEventListener('click', async () => {
   const onlyBW = state.selectedBW.size > 0 && state.selectedDW.size === 0;
 
   let headers = PDF_TABLE_HEADERS;
-  let rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o];
+  let rowMapper = row => [row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.bw, row.g, row.o];
 
   if (onlyDW) {
     headers = PDF_TABLE_HEADERS.filter(h => h !== 'PQT BW');
-    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.g, row.o];
+    rowMapper = row => [row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.dw, row.g, row.o];
   } else if (onlyBW) {
     headers = PDF_TABLE_HEADERS.filter(h => h !== 'PQT DW');
-    rowMapper = row => [row.i, row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.bw, row.g, row.o];
+    rowMapper = row => [row.ins, row.dis, row.sub, row.tag, row.sys, row.desc, row.lvl, row.bw, row.g, row.o];
   }
 
   const body = sortedRows.map(rowMapper);
@@ -1521,7 +1521,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', async () => {
     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [244, 246, 250] },
     margin: { left: 20, right: 20, bottom: 30 },
-    columnStyles: { [tagColIndex]: { cellWidth: 130 }, [descColIndex]: { cellWidth: 140 } }
+    columnStyles: { [tagColIndex]: { cellWidth: 150 }, [descColIndex]: { cellWidth: 150 } }
   });
 
   addPdfFooter(doc);
@@ -1578,8 +1578,8 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
   });
 
   let y = 60;
-  const cardHeaders = ['ITEM', 'TAG', 'DISC.', 'SUBCONTRATISTA', 'SISTEMA', 'DESCRIPCIÓN', 'LVL', 'OBS'];
-  const colWidths = [30, 62, 34, 82, 46, 157, 22, 114]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
+  const cardHeaders = ['TAG', 'DISC.', 'SUBCONTRATISTA', 'SISTEMA', 'DESCRIPCIÓN', 'LVL', 'OBS'];
+  const colWidths = [90, 34, 82, 46, 155, 22, 118]; // suma ≈ pageW - 2*marginX (547 en A4 vertical)
 
   groupList.forEach(([key, group]) => {
     const total = group.rows.length;
@@ -1606,7 +1606,7 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
     doc.text(`${total} TAG(s)  ·  ${entregados} entregado(s) (${pct}%)`, pageW - marginX - 8, y + 15, { align: 'right' });
     y += 22;
 
-    const body = group.rows.map(r => [r.i, r.tag, r.dis, r.sub, r.sys, r.desc, r.lvl, r.o]);
+    const body = group.rows.map(r => [r.tag, r.dis, r.sub, r.sys, r.desc, r.lvl, r.o]);
 
     doc.autoTable({
       startY: y,
@@ -1619,7 +1619,7 @@ document.getElementById('exportPdfCardsBtn').addEventListener('click', async () 
       columnStyles: {
         0: { cellWidth: colWidths[0] }, 1: { cellWidth: colWidths[1] }, 2: { cellWidth: colWidths[2] },
         3: { cellWidth: colWidths[3] }, 4: { cellWidth: colWidths[4] }, 5: { cellWidth: colWidths[5] },
-        6: { cellWidth: colWidths[6] }, 7: { cellWidth: colWidths[7] }
+        6: { cellWidth: colWidths[6] }
       }
     });
 
