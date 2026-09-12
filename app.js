@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.5.0';
+const APP_VERSION = 'v3.6.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -749,6 +749,17 @@ const IMPORT_FIELD_MAP = [
   { header: 'OBS', field: 'o', apiKey: 'obs', label: 'OBS' }
 ];
 
+// Columnas de datos fijos, solo se usan para crear TAGs NUEVOS (nunca para
+// modificar los de un TAG que ya existe).
+const FIXED_IMPORT_FIELD_MAP = [
+  { header: 'INSTALL', apiKey: 'install' },
+  { header: 'DISCIPLINE', apiKey: 'discipline' },
+  { header: 'SUBCONTRACTOR', apiKey: 'subcontractor' },
+  { header: 'SYSTEM', apiKey: 'system' },
+  { header: 'DESCRIPTION', apiKey: 'description' },
+  { header: 'LEVEL', apiKey: 'level' }
+];
+
 let importAnalysis = null;
 
 document.getElementById('importExcelBtn').addEventListener('click', () => {
@@ -811,7 +822,13 @@ document.getElementById('importAnalyzeBtn').addEventListener('click', async () =
       return;
     }
 
-    importAnalysis = analyzeImport(aoa.slice(headerRowIdx + 1), tagIdx, itemIdx, fieldIdx);
+    const fixedIdx = {};
+    FIXED_IMPORT_FIELD_MAP.forEach(f => {
+      const idx = headerRow.indexOf(f.header);
+      if (idx !== -1) fixedIdx[f.apiKey] = idx;
+    });
+
+    importAnalysis = analyzeImport(aoa.slice(headerRowIdx + 1), tagIdx, itemIdx, fieldIdx, fixedIdx);
     renderImportReview(importAnalysis);
     document.getElementById('importStepFile').classList.add('hidden');
     document.getElementById('importStepReview').classList.remove('hidden');
@@ -824,7 +841,7 @@ function normVal(v) {
   return (v === null || v === undefined) ? '' : String(v).trim();
 }
 
-function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx) {
+function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx, fixedIdx) {
   // TAG -> filas vivas que lo tienen (para detectar duplicados en la hoja actual)
   const byTag = {};
   state.rows.forEach(row => {
@@ -844,6 +861,7 @@ function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx) {
   const conflicts = [];
   const notFound = [];
   const duplicates = [];
+  const toCreate = [];
   let totalExcelRows = 0;
 
   dataRows.forEach(r => {
@@ -860,7 +878,13 @@ function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx) {
       row = byItem[item][0];
     } else {
       const matches = tag ? byTag[tag] : null;
-      if (!matches || matches.length === 0) { notFound.push(item || tag); return; }
+      if (!matches || matches.length === 0) {
+        // No existe todavía. Si trae TAG, es candidato a TAG nuevo; si no
+        // trae ni TAG, no hay forma de identificarlo, se omite.
+        if (!tag) { notFound.push(item); return; }
+        toCreate.push(buildNewRowFromExcel(r, tag, item, fixedIdx, fieldIdx));
+        return;
+      }
       if (matches.length > 1) { duplicates.push(item || tag); return; }
       row = matches[0];
     }
@@ -886,7 +910,15 @@ function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx) {
     });
   });
 
-  return { autoApply, conflicts, notFound, duplicates, totalExcelRows };
+  return { autoApply, conflicts, notFound, duplicates, toCreate, totalExcelRows };
+}
+
+function buildNewRowFromExcel(r, tag, item, fixedIdx, fieldIdx) {
+  const get = (idx) => (idx !== undefined && idx !== -1) ? normVal(r[idx]) : '';
+  const newRow = { tag, item };
+  FIXED_IMPORT_FIELD_MAP.forEach(f => { newRow[f.apiKey] = get(fixedIdx[f.apiKey]); });
+  IMPORT_FIELD_MAP.forEach(f => { newRow[f.apiKey] = get(fieldIdx[f.field]); });
+  return newRow;
 }
 
 function renderImportReview(analysis) {
@@ -895,7 +927,8 @@ function renderImportReview(analysis) {
     <div>TAGs leídos del Excel: <b>${analysis.totalExcelRows}</b></div>
     <div>Cambios que se aplicarán automáticamente (el campo estaba vacío): <b>${analysis.autoApply.length}</b></div>
     <div>Conflictos que requieren tu decisión (ya había un valor distinto): <b>${analysis.conflicts.length}</b></div>
-    ${analysis.notFound.length ? `<div>TAGs no encontrados en tu Sheet (se omiten): <b>${analysis.notFound.length}</b></div>` : ''}
+    ${analysis.toCreate.length ? `<div><b>TAGs nuevos que se crearán al final de la Sheet: <b>${analysis.toCreate.length}</b></b></div>` : ''}
+    ${analysis.notFound.length ? `<div>Filas sin TAG ni ITEM identificable (se omiten): <b>${analysis.notFound.length}</b></div>` : ''}
     ${analysis.duplicates.length ? `<div>TAGs duplicados en tu Sheet (se omiten, revísalos manualmente en la Tabla): <b>${analysis.duplicates.length}</b></div>` : ''}
   `;
 
@@ -905,6 +938,22 @@ function renderImportReview(analysis) {
   } else {
     wrap.classList.remove('hidden');
     renderConflictsTable(analysis.conflicts);
+  }
+
+  const createWrap = document.getElementById('importCreateWrap');
+  if (analysis.toCreate.length === 0) {
+    createWrap.classList.add('hidden');
+  } else {
+    createWrap.classList.remove('hidden');
+    document.getElementById('importCreateBody').innerHTML = analysis.toCreate.map(nr => `
+      <tr>
+        <td>${escapeHtml(nr.item)}</td>
+        <td class="tag-cell">${escapeHtml(nr.tag)}</td>
+        <td>${escapeHtml(nr.discipline)}</td>
+        <td>${escapeHtml(nr.subcontractor)}</td>
+        <td class="desc-cell">${escapeHtml(nr.description)}</td>
+      </tr>
+    `).join('');
   }
 }
 
@@ -983,7 +1032,8 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   const entries = [...changesByRow.values()];
   document.getElementById('importModal').classList.add('hidden');
 
-  const nothingToDo = entries.length === 0 && importAnalysis.notFound.length === 0 && importAnalysis.duplicates.length === 0;
+  const nothingToDo = entries.length === 0 && importAnalysis.toCreate.length === 0 &&
+    importAnalysis.notFound.length === 0 && importAnalysis.duplicates.length === 0;
   if (nothingToDo) {
     showToast('No hay cambios para aplicar.', 'error');
     importAnalysis = null;
@@ -1022,19 +1072,60 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
     rr.detalle = res && !res.ok ? res.error : '';
   });
 
+  // Crear los TAGs nuevos (se agregan al final de la Sheet, uno por uno).
+  let createdCount = 0, createErrCount = 0;
+  if (importAnalysis.toCreate.length > 0) {
+    showToast(`Creando ${importAnalysis.toCreate.length} TAG(s) nuevo(s)…`, 'success');
+  }
+  for (const nr of importAnalysis.toCreate) {
+    try {
+      const payload = Object.assign({ action: 'appendRow', editor: state.userName }, nr);
+      const result = await apiPost(payload);
+      if (result.ok) {
+        createdCount++;
+        state.rows.push({
+          r: result.row, i: nr.item, ins: nr.install, dis: nr.discipline, sub: nr.subcontractor,
+          tag: nr.tag, sys: nr.system, desc: nr.description, lvl: nr.level,
+          dw: nr.pqtDW, bw: nr.pqtBW, g: nr.gqe, edw: nr.entregadoDW, ebw: nr.entregadoBW, o: nr.obs,
+          ed: state.userName, up: result.updatedAt
+        });
+        reportRows.push({
+          tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
+          decision: 'Creado', resultado: 'OK', detalle: ''
+        });
+      } else {
+        createErrCount++;
+        reportRows.push({
+          tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
+          decision: 'Creado', resultado: 'Error', detalle: result.error || 'Error desconocido'
+        });
+      }
+    } catch (e) {
+      createErrCount++;
+      reportRows.push({
+        tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
+        decision: 'Creado', resultado: 'Error', detalle: e.message
+      });
+    }
+  }
+
   importAnalysis.notFound.forEach(tag => {
-    reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'TAG no encontrado en la Sheet' });
+    reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'Sin TAG ni ITEM identificable' });
   });
   importAnalysis.duplicates.forEach(tag => {
     reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'TAG duplicado en la Sheet (no se pudo saber cuál fila actualizar)' });
   });
 
   saveCache(state.rows);
+  populateFilterOptions();
   renderDashboard();
   applyFilters();
   importAnalysis = null;
 
-  showToast(`Importación terminada: ${okCount} TAG(s) actualizados${errCount ? `, ${errCount} con error` : ''}. Descargando reporte…`, errCount ? 'error' : 'success');
+  const parts = [`${okCount} TAG(s) actualizados`];
+  if (createdCount || createErrCount) parts.push(`${createdCount} TAG(s) nuevo(s) creados`);
+  if (errCount || createErrCount) parts.push(`${errCount + createErrCount} con error`);
+  showToast(`Importación terminada: ${parts.join(', ')}. Descargando reporte…`, (errCount || createErrCount) ? 'error' : 'success');
   downloadImportReport(reportRows);
 });
 

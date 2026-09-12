@@ -89,7 +89,7 @@ function doGet(e) {
   }
 }
 
-/** POST: body JSON = { action: 'updateRow'|'uploadFile'|'deleteFile', ... } */
+/** POST: body JSON = { action: 'updateRow'|'appendRow'|'uploadFile'|'deleteFile', ... } */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -97,6 +97,9 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     if (body.action === 'updateRow') {
       return jsonOut_(updateRow_(body));
+    }
+    if (body.action === 'appendRow') {
+      return jsonOut_(appendRow_(body));
     }
     if (body.action === 'uploadFile') {
       return jsonOut_(uploadFile_(body));
@@ -306,4 +309,39 @@ function updateRow_(body) {
   sheet.getRange(targetRow, COLS.UPDATED_AT).setValue(now);
 
   return { ok: true, row: targetRow, updatedAt: now };
+}
+
+/**
+ * Agrega una fila NUEVA al final de la hoja (un TAG que no existía antes).
+ * Se usa desde "Importar Excel" cuando el ITEM/TAG del archivo no
+ * coincide con ninguna fila existente. Requiere al menos TAG; el resto de
+ * columnas quedan vacías si no se informan.
+ */
+function appendRow_(body) {
+  if (!body.tag) return { ok: false, error: 'No se puede crear una fila sin TAG.' };
+
+  const sheet = getSheet_();
+  const newRow = sheet.getLastRow() + 1;
+  const now = new Date().toISOString();
+
+  const values = new Array(16).fill('');
+  values[COLS.ITEM - 1] = body.item || '';
+  values[COLS.INSTALL - 1] = body.install || '';
+  values[COLS.DISCIPLINE - 1] = body.discipline || '';
+  values[COLS.SUBCONTRACTOR - 1] = body.subcontractor || '';
+  values[COLS.TAG - 1] = body.tag;
+  values[COLS.SYSTEM - 1] = body.system || '';
+  values[COLS.DESCRIPTION - 1] = body.description || '';
+  values[COLS.LEVEL - 1] = body.level || '';
+  values[COLS.PQT_DW - 1] = body.pqtDW || '';
+  values[COLS.PQT_BW - 1] = body.pqtBW || '';
+  values[COLS.GQE - 1] = body.gqe || '';
+  values[COLS.OBS - 1] = body.obs || '';
+  values[COLS.EDITOR - 1] = body.editor || '';
+  values[COLS.UPDATED_AT - 1] = now;
+  values[COLS.ENTREGADO_DW - 1] = body.entregadoDW || '';
+  values[COLS.ENTREGADO_BW - 1] = body.entregadoBW || '';
+
+  sheet.getRange(newRow, 1, 1, values.length).setValues([values]);
+  return { ok: true, row: newRow, updatedAt: now };
 }

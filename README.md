@@ -91,6 +91,14 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 
 ## 4. Sube la app a GitHub
 
+> ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
+> nuevo (agrega la posibilidad de crear TAGs nuevos desde Importar Excel)
+> y pégalo en tu Apps Script, reemplazando todo el contenido anterior.
+> Luego **Implementar > Gestionar implementaciones > ✏️ (editar) >
+> Versión: Nueva versión > Implementar** — si solo guardas el script sin
+> crear una nueva versión, no vas a poder crear TAGs nuevos por Excel
+> (el resto de la app seguirá funcionando igual).
+
 > ⚠️ **Cambio de estructura en tu Sheet: ahora hay DOS columnas de
 > Entregado.** Antes había una sola columna `ENTREGADO` (columna O). Como
 > algunos TAGs tienen paquete DW y BW a la vez, esa única columna era
@@ -171,7 +179,15 @@ configurar de su parte.
        una sola fila sin ambigüedad. Solo se omiten e informan en el
        resumen los casos donde ni el ITEM ni el TAG se encuentran, o
        donde el TAG está duplicado y tampoco vino el ITEM para
-       desambiguar (no crea TAGs nuevos en ningún caso).
+       desambiguar.
+     - **TAGs completamente nuevos** (que no existen ni por ITEM ni por
+       TAG en tu Sheet) se detectan aparte y se muestran en una lista de
+       vista previa — se crean como filas nuevas **al final de tu Sheet**
+       al aplicar, usando también las columnas ITEM, INSTALL, DISCIPLINE,
+       SUBCONTRACTOR, SYSTEM, DESCRIPTION y LEVEL de tu Excel (si las
+       incluye). Así puedes seguir agregando equipos nuevos según los
+       vayas necesitando, siempre que traigan su TAG y, para que no se
+       mezclen con la secuencia existente, su ITEM correspondiente.
   3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet, y al
      terminar descarga automáticamente un **reporte en CSV**
      (`reporte_importacion_...csv`) con el detalle completo: cada TAG,
