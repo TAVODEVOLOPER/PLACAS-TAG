@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.6.0';
+const APP_VERSION = 'v3.7.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -766,6 +766,7 @@ document.getElementById('importExcelBtn').addEventListener('click', () => {
   document.getElementById('importFileInput').value = '';
   document.getElementById('importStepFile').classList.remove('hidden');
   document.getElementById('importStepReview').classList.add('hidden');
+  document.getElementById('importStepProgress').classList.add('hidden');
   document.getElementById('importModal').classList.remove('hidden');
 });
 document.getElementById('importModalCloseBtn').addEventListener('click', () => {
@@ -1030,7 +1031,6 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   });
 
   const entries = [...changesByRow.values()];
-  document.getElementById('importModal').classList.add('hidden');
 
   const nothingToDo = entries.length === 0 && importAnalysis.toCreate.length === 0 &&
     importAnalysis.notFound.length === 0 && importAnalysis.duplicates.length === 0;
@@ -1040,7 +1040,28 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
     return;
   }
 
-  if (entries.length > 0) showToast(`Aplicando cambios a ${entries.length} TAG(s)…`, 'success');
+  // Cambiamos a la vista de progreso (el modal se queda abierto, no
+  // desaparece hasta que el usuario lo cierra) en vez de un aviso que se
+  // borra solo a los pocos segundos.
+  document.getElementById('importStepReview').classList.add('hidden');
+  document.getElementById('importStepProgress').classList.remove('hidden');
+  const totalSteps = entries.length + importAnalysis.toCreate.length;
+  let doneSteps = 0;
+  const progressFill = document.getElementById('importProgressFill');
+  const progressPct = document.getElementById('importProgressPct');
+  const progressLabel = document.getElementById('importProgressLabel');
+  const progressDetail = document.getElementById('importProgressDetail');
+  const closeBtn = document.getElementById('importCloseProgressBtn');
+
+  function tickProgress(label) {
+    doneSteps++;
+    const pct = totalSteps ? Math.round((doneSteps / totalSteps) * 100) : 100;
+    progressFill.style.width = pct + '%';
+    progressPct.textContent = pct + '%';
+    progressLabel.textContent = label;
+  }
+
+  progressLabel.textContent = `Aplicando cambios (0 de ${totalSteps})…`;
 
   let okCount = 0, errCount = 0;
   const rowResult = new Map();
@@ -1063,6 +1084,7 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
       errCount++;
       rowResult.set(entry.row.r, { ok: false, error: e.message });
     }
+    tickProgress(`Actualizando TAGs existentes (${doneSteps} de ${totalSteps})…`);
   }
 
   reportRows.forEach(rr => {
@@ -1074,9 +1096,6 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
 
   // Crear los TAGs nuevos (se agregan al final de la Sheet, uno por uno).
   let createdCount = 0, createErrCount = 0;
-  if (importAnalysis.toCreate.length > 0) {
-    showToast(`Creando ${importAnalysis.toCreate.length} TAG(s) nuevo(s)…`, 'success');
-  }
   for (const nr of importAnalysis.toCreate) {
     try {
       const payload = Object.assign({ action: 'appendRow', editor: state.userName }, nr);
@@ -1107,6 +1126,7 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
         decision: 'Creado', resultado: 'Error', detalle: e.message
       });
     }
+    tickProgress(`Creando TAGs nuevos (${doneSteps} de ${totalSteps})…`);
   }
 
   importAnalysis.notFound.forEach(tag => {
@@ -1122,10 +1142,27 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   applyFilters();
   importAnalysis = null;
 
+  const hadErrors = errCount > 0 || createErrCount > 0;
+  progressFill.style.width = '100%';
+  progressPct.textContent = '100%';
+  progressLabel.textContent = hadErrors ? '⚠️ Importación terminada con errores' : '✅ Importación completada correctamente';
+  progressDetail.innerHTML = `
+    <div>TAGs actualizados: <b>${okCount}</b>${errCount ? ` (${errCount} con error)` : ''}</div>
+    ${(createdCount || createErrCount) ? `<div>TAGs nuevos creados: <b>${createdCount}</b>${createErrCount ? ` (${createErrCount} con error)` : ''}</div>` : ''}
+    <div>Se descargó el reporte detallado (CSV) a tu computadora.</div>
+  `;
+  closeBtn.disabled = false;
+  closeBtn.textContent = 'Cerrar';
+  closeBtn.onclick = () => {
+    document.getElementById('importModal').classList.add('hidden');
+    document.getElementById('importStepProgress').classList.add('hidden');
+    closeBtn.onclick = null;
+  };
+
   const parts = [`${okCount} TAG(s) actualizados`];
   if (createdCount || createErrCount) parts.push(`${createdCount} TAG(s) nuevo(s) creados`);
-  if (errCount || createErrCount) parts.push(`${errCount + createErrCount} con error`);
-  showToast(`Importación terminada: ${parts.join(', ')}. Descargando reporte…`, (errCount || createErrCount) ? 'error' : 'success');
+  if (hadErrors) parts.push(`${errCount + createErrCount} con error`);
+  showToast(`Importación terminada: ${parts.join(', ')}.`, hadErrors ? 'error' : 'success');
   downloadImportReport(reportRows);
 });
 

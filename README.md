@@ -188,14 +188,18 @@ configurar de su parte.
        incluye). Así puedes seguir agregando equipos nuevos según los
        vayas necesitando, siempre que traigan su TAG y, para que no se
        mezclen con la secuencia existente, su ITEM correspondiente.
-  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet, y al
-     terminar descarga automáticamente un **reporte en CSV**
+  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet. Se
+     abre una **barra de progreso que se queda visible** todo el proceso
+     (útil si son muchas filas, ya que cada una es una llamada a tu
+     Sheet) y termina con un resumen fijo — "✅ Importación completada
+     correctamente" o el aviso de error si algo falló — que **no
+     desaparece solo**, tienes que pulsar "Cerrar" para quitarlo. Al
+     terminar también descarga automáticamente un **reporte en CSV**
      (`reporte_importacion_...csv`) con el detalle completo: cada TAG,
      qué campo cambió, el valor anterior y el nuevo, si fue automático o
      un conflicto (y cómo lo resolviste), y si se guardó bien o falló —
-     incluyendo los TAGs no encontrados o duplicados que se omitieron. Es
-     tu comprobante de que la importación se aplicó, sin depender del
-     aviso que desaparece a los pocos segundos.
+     incluyendo los TAGs no encontrados, duplicados u omitidos, y los
+     TAGs nuevos que se crearon.
 
   Tu Excel de importación necesita al menos la columna `TAG` y una o más
   de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS` con
