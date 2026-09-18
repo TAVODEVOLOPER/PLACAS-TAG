@@ -229,6 +229,11 @@ placa/señalética industrial, no como un dashboard genérico:
        incluye). Así puedes seguir agregando equipos nuevos según los
        vayas necesitando, siempre que traigan su TAG y, para que no se
        mezclen con la secuencia existente, su ITEM correspondiente.
+     - Si el mismo TAG/ITEM nuevo aparece **repetido varias veces dentro
+       del mismo archivo Excel** (por ejemplo, una fila copiada por
+       error), la app lo crea **una sola vez** — con la primera fila que
+       lo trae — y reporta las repeticiones como omitidas, en vez de
+       crear un TAG duplicado por cada copia.
   3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet,
      mandando los cambios en **lotes de hasta 150** (no uno por fila) —
      así, aunque importes cientos de TAGs de golpe, la app hace solo un

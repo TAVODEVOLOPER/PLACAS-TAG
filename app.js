@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v4.1.0';
+const APP_VERSION = 'v4.2.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -938,7 +938,10 @@ function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx, fixedIdx) {
   const conflicts = [];
   const notFound = [];
   const duplicates = [];
+  const duplicatesInFile = [];
   const toCreate = [];
+  const seenNewTags = new Set();
+  const seenNewItems = new Set();
   let totalExcelRows = 0;
 
   dataRows.forEach(r => {
@@ -959,6 +962,15 @@ function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx, fixedIdx) {
         // No existe todavía. Si trae TAG, es candidato a TAG nuevo; si no
         // trae ni TAG, no hay forma de identificarlo, se omite.
         if (!tag) { notFound.push(item); return; }
+        // Si este mismo TAG (o ITEM) ya apareció antes EN ESTE MISMO
+        // archivo como fila nueva, no lo creamos de nuevo — se crea una
+        // sola vez, con la primera fila que lo trajo.
+        if (seenNewTags.has(tag) || (item && seenNewItems.has(item))) {
+          duplicatesInFile.push(item || tag);
+          return;
+        }
+        seenNewTags.add(tag);
+        if (item) seenNewItems.add(item);
         toCreate.push(buildNewRowFromExcel(r, tag, item, fixedIdx, fieldIdx));
         return;
       }
@@ -987,7 +999,7 @@ function analyzeImport(dataRows, tagIdx, itemIdx, fieldIdx, fixedIdx) {
     });
   });
 
-  return { autoApply, conflicts, notFound, duplicates, toCreate, totalExcelRows };
+  return { autoApply, conflicts, notFound, duplicates, duplicatesInFile, toCreate, totalExcelRows };
 }
 
 function buildNewRowFromExcel(r, tag, item, fixedIdx, fieldIdx) {
@@ -1007,6 +1019,7 @@ function renderImportReview(analysis) {
     ${analysis.toCreate.length ? `<div><b>TAGs nuevos que se crearán al final de la Sheet: <b>${analysis.toCreate.length}</b></b></div>` : ''}
     ${analysis.notFound.length ? `<div>Filas sin TAG ni ITEM identificable (se omiten): <b>${analysis.notFound.length}</b></div>` : ''}
     ${analysis.duplicates.length ? `<div>TAGs duplicados en tu Sheet (se omiten, revísalos manualmente en la Tabla): <b>${analysis.duplicates.length}</b></div>` : ''}
+    ${analysis.duplicatesInFile.length ? `<div>Filas repetidas dentro del mismo Excel (se creó solo una por TAG): <b>${analysis.duplicatesInFile.length}</b></div>` : ''}
   `;
 
   const wrap = document.getElementById('importConflictsWrap');
@@ -1237,6 +1250,9 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   });
   importAnalysis.duplicates.forEach(tag => {
     reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'TAG duplicado en la Sheet (no se pudo saber cuál fila actualizar)' });
+  });
+  importAnalysis.duplicatesInFile.forEach(tag => {
+    reportRows.push({ tag, item: '', campo: '', valorAnterior: '', valorExcel: '', decision: '', resultado: 'Omitido', detalle: 'TAG repetido dentro del mismo Excel (ya se había creado con una fila anterior)' });
   });
 
   saveCache(state.rows);
