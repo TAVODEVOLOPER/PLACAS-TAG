@@ -92,6 +92,21 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 ## 4. Sube la app a GitHub
 
 > ⚠️ **Esta vez también hay que tocar el backend — es importante.** Copia
+> el `Code.gs` nuevo (agrega **editar cualquier campo** de una fila y
+> **eliminar TAGs**) y pégalo en tu Apps Script, reemplazando todo el
+> contenido anterior. Luego **Implementar > Gestionar implementaciones >
+> ✏️ (editar) > Versión: Nueva versión > Implementar** — sin este paso,
+> guardar ediciones de datos fijos o eliminar un TAG te va a dar
+> "Acción desconocida".
+>
+> Sobre "Eliminar": por seguridad, no borra la fila físicamente de tu
+> Sheet (eso correría hacia arriba el número de todas las filas
+> siguientes, y dañaría lo que otros usuarios tengan en caché) — la deja
+> completamente vacía. Para la app y para cualquiera que la use, el TAG
+> desaparece igual; si alguna vez quieres limpiar esas filas vacías de tu
+> Sheet a mano, puedes borrarlas ahí sin problema.
+
+> ⚠️ **Esta vez también hay que tocar el backend — es importante.** Copia
 > el `Code.gs` nuevo (agrega `updateRows`/`appendRows`, que mandan los
 > cambios en lotes en vez de uno por uno; esto corrige los errores
 > masivos que salían al importar muchos TAGs de golpe, por exceso de
@@ -173,11 +188,18 @@ placa/señalética industrial, no como un dashboard genérico:
   varios paquetes DW/BW específicos, y junto a él hay un atajo rápido
   **Todos / Solo DW / Solo BW** para filtrar por tipo de paquete sin tener
   que marcar cada número (muy útil en celular) — ambos comparten el mismo
-  filtro. Los administradores editan `PQT DW`, `PQT BW`, `GQE`,
-  **`ENTREGADO_DW`**, **`ENTREGADO_BW`** y `OBS` en línea, con su propio botón **Guardar** por
-  fila (marca `Y` en Entregado cuando la placa ya se entregó al
-  subcontratista — útil porque las entregas se hacen por partes). Los
-  usuarios ven la tabla en modo solo lectura.
+  filtro. Los administradores pueden editar **cualquier columna de cada
+  fila** en línea — los datos fijos (ITEM, INSTALL, DISCIPLINA,
+  SUBCONTRATISTA, TAG, SISTEMA, DESCRIPCIÓN, LEVEL) para corregir errores
+  de captura, y las de clasificación (`PQT DW`, `PQT BW`, `GQE`,
+  `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS`) como siempre — con su propio
+  botón **Guardar** por fila. Junto a Guardar hay un botón **Eliminar**
+  para TAGs duplicados o que ya no existen: pide confirmación, y por
+  seguridad no borra físicamente la fila (eso correría hacia arriba el
+  número de todas las filas siguientes) — la vacía por completo, así que
+  desaparece de la app y de cualquier búsqueda, pero el resto de tus
+  filas nunca se desordena. Los usuarios ven la tabla en modo solo
+  lectura.
 - **Importar Excel** (solo administradores): para cuando prefieres llenar
   `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW` u `OBS` en tu propio Excel (por
   ejemplo tu archivo original con macros, porque ahí escribes más rápido) y

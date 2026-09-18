@@ -458,6 +458,27 @@ td input[type="text"]:focus { outline: none; border-color: var(--blue); backgrou
 
 td input.obs-input { width: 150px; font-family: var(--sans); }
 td input.gqe-input { width: 34px; text-align: center; text-transform: uppercase; }
+td input.item-input { width: 50px; font-family: var(--mono); }
+td input.tag-input { width: 170px; font-family: var(--mono); }
+td input.install-input { width: 60px; }
+td input.disc-input { width: 70px; }
+td input.sub-input { width: 110px; }
+td input.sys-input { width: 60px; }
+td input.desc-input { width: 190px; }
+td input.lvl-input { width: 40px; }
+
+.row-actions { display: flex; gap: 4px; }
+.row-delete-btn {
+  padding: 4px 9px;
+  background: var(--panel);
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 700;
+}
+.row-delete-btn:hover { background: var(--red); color: #fff; }
+.row-delete-btn:disabled { opacity: 0.6; cursor: default; }
 
 .row-save-btn { padding: 4px 9px; background: var(--panel-raised); border: 1px solid var(--border); border-radius: 4px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
 .row-save-btn.dirty { color: #fff; background: var(--amber); border-color: var(--amber); }

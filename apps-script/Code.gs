@@ -89,7 +89,7 @@ function doGet(e) {
   }
 }
 
-/** POST: body JSON = { action: 'updateRow'|'updateRows'|'appendRow'|'appendRows'|'uploadFile'|'deleteFile', ... } */
+/** POST: body JSON = { action: 'updateRow'|'updateRows'|'appendRow'|'appendRows'|'deleteRow'|'uploadFile'|'deleteFile', ... } */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -106,6 +106,9 @@ function doPost(e) {
     }
     if (body.action === 'appendRows') {
       return jsonOut_(appendRows_(body));
+    }
+    if (body.action === 'deleteRow') {
+      return jsonOut_(deleteRow_(body));
     }
     if (body.action === 'uploadFile') {
       return jsonOut_(uploadFile_(body));
@@ -285,7 +288,7 @@ function getNextValeNumber_() {
   }
 }
 
-/** Actualiza PQT DW / PQT BW / GQE / OBS / ENTREGADO_DW / ENTREGADO_BW de una fila, localizándola por ITEM. */
+/** Actualiza cualquier dato de una fila (fijos o de clasificación), localizándola por ITEM si no se da "r". */
 function updateRow_(body) {
   const sheet = getSheet_();
   const lastRow = sheet.getLastRow();
@@ -309,6 +312,16 @@ function updateRow_(body) {
   if (body.obs !== undefined) sheet.getRange(targetRow, COLS.OBS).setValue(body.obs);
   if (body.entregadoDW !== undefined) sheet.getRange(targetRow, COLS.ENTREGADO_DW).setValue(body.entregadoDW);
   if (body.entregadoBW !== undefined) sheet.getRange(targetRow, COLS.ENTREGADO_BW).setValue(body.entregadoBW);
+  if (body.install !== undefined) sheet.getRange(targetRow, COLS.INSTALL).setValue(body.install);
+  if (body.discipline !== undefined) sheet.getRange(targetRow, COLS.DISCIPLINE).setValue(body.discipline);
+  if (body.subcontractor !== undefined) sheet.getRange(targetRow, COLS.SUBCONTRACTOR).setValue(body.subcontractor);
+  if (body.tag !== undefined) sheet.getRange(targetRow, COLS.TAG).setValue(body.tag);
+  if (body.system !== undefined) sheet.getRange(targetRow, COLS.SYSTEM).setValue(body.system);
+  if (body.description !== undefined) sheet.getRange(targetRow, COLS.DESCRIPTION).setValue(body.description);
+  if (body.level !== undefined) sheet.getRange(targetRow, COLS.LEVEL).setValue(body.level);
+  // El ITEM se actualiza al final para no interferir con la búsqueda de
+  // arriba (que puede usar body.item para localizar la fila).
+  if (body.newItem !== undefined) sheet.getRange(targetRow, COLS.ITEM).setValue(body.newItem);
 
   const now = new Date().toISOString();
   sheet.getRange(targetRow, COLS.EDITOR).setValue(body.editor || '');
@@ -428,4 +441,22 @@ function appendRows_(body) {
 
   const created = body.rows.map((r, idx) => ({ tag: r.tag, item: r.item, row: startRow + idx }));
   return { ok: true, count: matrix.length, created: created, updatedAt: now };
+}
+
+/**
+ * "Elimina" un TAG. OJO: en vez de borrar la fila de la hoja (lo que
+ * correría hacia arriba el número de fila de TODAS las filas siguientes,
+ * y dejaría desactualizadas las referencias que otros usuarios tengan
+ * guardadas en caché), esta función VACÍA todas las columnas de esa fila.
+ * Al quedar sin TAG, getData_ la deja de mostrar automáticamente — para
+ * la app y para quien la use, el TAG desaparece igual, pero de forma
+ * segura para el resto de filas.
+ */
+function deleteRow_(body) {
+  if (!body.r) return { ok: false, error: 'Falta el número de fila.' };
+  const sheet = getSheet_();
+  const numCols = 16;
+  const blank = new Array(numCols).fill('');
+  sheet.getRange(body.r, 1, 1, numCols).setValues([blank]);
+  return { ok: true, row: body.r };
 }

@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v4.0.0';
+const APP_VERSION = 'v4.1.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -576,6 +576,7 @@ function renderTablePage() {
   if (canEdit) {
     tbody.querySelectorAll('.editable').forEach(input => input.addEventListener('input', onFieldChange));
     tbody.querySelectorAll('.row-save-btn').forEach(btn => btn.addEventListener('click', onSaveRow));
+    tbody.querySelectorAll('.row-delete-btn').forEach(btn => btn.addEventListener('click', onDeleteRow));
   }
 }
 
@@ -604,21 +605,26 @@ function readonlyRowHtml(row) {
 function editableRowHtml(row) {
   return `
     <tr data-row="${row.r}">
-      <td>${escapeHtml(row.i)}</td>
-      <td>${escapeHtml(row.ins)}</td>
-      <td>${escapeHtml(row.dis)}</td>
-      <td>${escapeHtml(row.sub)}</td>
-      <td class="tag-cell" title="${escapeHtml(row.tag)}">${escapeHtml(row.tag)}</td>
-      <td>${escapeHtml(row.sys)}</td>
-      <td class="desc-cell" title="${escapeHtml(row.desc)}">${escapeHtml(row.desc)}</td>
-      <td>${escapeHtml(row.lvl)}</td>
+      <td><input class="editable item-input" data-field="i" type="text" value="${escapeHtml(row.i)}"></td>
+      <td><input class="editable install-input" data-field="ins" type="text" value="${escapeHtml(row.ins)}"></td>
+      <td><input class="editable disc-input" data-field="dis" type="text" value="${escapeHtml(row.dis)}"></td>
+      <td><input class="editable sub-input" data-field="sub" type="text" value="${escapeHtml(row.sub)}"></td>
+      <td><input class="editable tag-input" data-field="tag" type="text" value="${escapeHtml(row.tag)}"></td>
+      <td><input class="editable sys-input" data-field="sys" type="text" value="${escapeHtml(row.sys)}"></td>
+      <td><input class="editable desc-input" data-field="desc" type="text" value="${escapeHtml(row.desc)}"></td>
+      <td><input class="editable lvl-input" data-field="lvl" type="text" value="${escapeHtml(row.lvl)}"></td>
       <td><input class="editable" data-field="dw" type="text" value="${escapeHtml(row.dw)}"></td>
       <td><input class="editable" data-field="bw" type="text" value="${escapeHtml(row.bw)}"></td>
       <td><input class="editable gqe-input" data-field="g" type="text" maxlength="1" value="${escapeHtml(row.g)}"></td>
       <td><input class="editable gqe-input" data-field="edw" type="text" maxlength="1" value="${escapeHtml(row.edw)}"></td>
       <td><input class="editable gqe-input" data-field="ebw" type="text" maxlength="1" value="${escapeHtml(row.ebw)}"></td>
       <td><input class="editable obs-input" data-field="o" type="text" value="${escapeHtml(row.o)}"></td>
-      <td><button class="row-save-btn">Guardar</button></td>
+      <td>
+        <div class="row-actions">
+          <button class="row-save-btn">Guardar</button>
+          <button class="row-delete-btn" title="Eliminar este TAG">Eliminar</button>
+        </div>
+      </td>
     </tr>
   `;
 }
@@ -640,6 +646,14 @@ async function onSaveRow(e) {
   const payload = {
     action: 'updateRow',
     r: r,
+    newItem: tr.querySelector('[data-field="i"]').value.trim(),
+    install: tr.querySelector('[data-field="ins"]').value.trim(),
+    discipline: tr.querySelector('[data-field="dis"]').value.trim(),
+    subcontractor: tr.querySelector('[data-field="sub"]').value.trim(),
+    tag: tr.querySelector('[data-field="tag"]').value.trim(),
+    system: tr.querySelector('[data-field="sys"]').value.trim(),
+    description: tr.querySelector('[data-field="desc"]').value.trim(),
+    level: tr.querySelector('[data-field="lvl"]').value.trim(),
     pqtDW: tr.querySelector('[data-field="dw"]').value.trim(),
     pqtBW: tr.querySelector('[data-field="bw"]').value.trim(),
     gqe: tr.querySelector('[data-field="g"]').value.trim().toUpperCase(),
@@ -656,6 +670,14 @@ async function onSaveRow(e) {
 
     const rowObj = state.rows.find(x => x.r === r);
     if (rowObj) {
+      rowObj.i = payload.newItem;
+      rowObj.ins = payload.install;
+      rowObj.dis = payload.discipline;
+      rowObj.sub = payload.subcontractor;
+      rowObj.tag = payload.tag;
+      rowObj.sys = payload.system;
+      rowObj.desc = payload.description;
+      rowObj.lvl = payload.level;
       rowObj.dw = payload.pqtDW;
       rowObj.bw = payload.pqtBW;
       rowObj.g = payload.gqe;
@@ -668,6 +690,7 @@ async function onSaveRow(e) {
     btn.classList.remove('dirty', 'error');
     btn.classList.add('saved');
     btn.textContent = 'Guardado ✓';
+    populateFilterOptions();
     renderDashboard();
     showToast('Fila actualizada correctamente.', 'success');
   } catch (err) {
@@ -675,6 +698,39 @@ async function onSaveRow(e) {
     btn.classList.add('error');
     btn.textContent = 'Error';
     showToast('No se pudo guardar: ' + err.message, 'error');
+  }
+}
+
+// Elimina un TAG. El backend vacía la fila (no reordena las demás), así
+// que ningún otro TAG se ve afectado. Pide confirmación porque no se
+// puede deshacer desde la app.
+async function onDeleteRow(e) {
+  if (state.role !== 'admin') return;
+  const btn = e.target;
+  const tr = btn.closest('tr');
+  const r = Number(tr.dataset.row);
+  const rowObj = state.rows.find(x => x.r === r);
+  const tagLabel = rowObj ? rowObj.tag : `fila ${r}`;
+
+  const confirmed = window.confirm(`¿Eliminar el TAG "${tagLabel}"? Esta acción no se puede deshacer desde la app.`);
+  if (!confirmed) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Eliminando…';
+  try {
+    const result = await apiPost({ action: 'deleteRow', r });
+    if (!result.ok) throw new Error(result.error || 'Error desconocido');
+
+    state.rows = state.rows.filter(x => x.r !== r);
+    saveCache(state.rows);
+    populateFilterOptions();
+    renderDashboard();
+    applyFilters();
+    showToast(`TAG "${tagLabel}" eliminado.`, 'success');
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Eliminar';
+    showToast('No se pudo eliminar: ' + err.message, 'error');
   }
 }
 
