@@ -91,13 +91,13 @@ pegar ninguna URL** — solo entran con la contraseña que tú les des:
 
 ## 4. Sube la app a GitHub
 
-> ⚠️ **Esta vez también hay que tocar el backend.** Copia el `Code.gs`
-> nuevo (agrega la posibilidad de crear TAGs nuevos desde Importar Excel)
-> y pégalo en tu Apps Script, reemplazando todo el contenido anterior.
-> Luego **Implementar > Gestionar implementaciones > ✏️ (editar) >
-> Versión: Nueva versión > Implementar** — si solo guardas el script sin
-> crear una nueva versión, no vas a poder crear TAGs nuevos por Excel
-> (el resto de la app seguirá funcionando igual).
+> ⚠️ **Esta vez también hay que tocar el backend — es importante.** Copia
+> el `Code.gs` nuevo (agrega `updateRows`/`appendRows`, que mandan los
+> cambios en lotes en vez de uno por uno; esto corrige los errores
+> masivos que salían al importar muchos TAGs de golpe, por exceso de
+> peticiones a Google) y pégalo en tu Apps Script, reemplazando todo el
+> contenido anterior. Luego **Implementar > Gestionar implementaciones >
+> ✏️ (editar) > Versión: Nueva versión > Implementar**.
 
 > ⚠️ **Cambio de estructura en tu Sheet: ahora hay DOS columnas de
 > Entregado.** Antes había una sola columna `ENTREGADO` (columna O). Como
@@ -141,6 +141,25 @@ Comparte con tu equipo la URL de GitHub Pages
 corresponda a cada persona. Verán una pantalla de bienvenida con la
 fotografía de la plataforma y el campo de contraseña — nada más que
 configurar de su parte.
+
+## Diseño (v4.0.0)
+
+Rediseño visual completo pensado para que se sienta como viene de una
+placa/señalética industrial, no como un dashboard genérico:
+
+- **Paleta**: base cálida tipo acero cepillado/papel de plano técnico, con
+  **naranja de seguridad** como color principal (antes era azul genérico),
+  acero azulado como acento secundario, y verdes/rojos apagados tipo
+  señalética para "entregado/pendiente".
+- **Tipografía**: una sola familia (Archivo) — bien pesada para títulos
+  (efecto "letras troqueladas en placa") y normal para el resto. Los
+  códigos TAG siguen en JetBrains Mono.
+- **Barra de herramientas reorganizada**: los filtros quedaron agrupados
+  con separadores claros, y las 5 acciones de administrador (Importar
+  Excel, Exportar CSV/Excel, Generar Vale, Archivos en Drive) se movieron
+  a un solo botón **"Herramientas ▾"** que abre un panel — en vez de 5
+  botones sueltos amontonados en la barra. Esto también mejora bastante
+  el uso en celular, donde antes se apilaban todos los botones.
 
 ## Cómo funciona
 
@@ -188,18 +207,21 @@ configurar de su parte.
        incluye). Así puedes seguir agregando equipos nuevos según los
        vayas necesitando, siempre que traigan su TAG y, para que no se
        mezclen con la secuencia existente, su ITEM correspondiente.
-  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet. Se
-     abre una **barra de progreso que se queda visible** todo el proceso
-     (útil si son muchas filas, ya que cada una es una llamada a tu
-     Sheet) y termina con un resumen fijo — "✅ Importación completada
-     correctamente" o el aviso de error si algo falló — que **no
-     desaparece solo**, tienes que pulsar "Cerrar" para quitarlo. Al
-     terminar también descarga automáticamente un **reporte en CSV**
-     (`reporte_importacion_...csv`) con el detalle completo: cada TAG,
-     qué campo cambió, el valor anterior y el nuevo, si fue automático o
-     un conflicto (y cómo lo resolviste), y si se guardó bien o falló —
-     incluyendo los TAGs no encontrados, duplicados u omitidos, y los
-     TAGs nuevos que se crearon.
+  3. **"Aplicar cambios"** guarda todo de una vez en tu Google Sheet,
+     mandando los cambios en **lotes de hasta 150** (no uno por fila) —
+     así, aunque importes cientos de TAGs de golpe, la app hace solo un
+     puñado de peticiones en vez de cientos, evitando que Google rechace
+     peticiones por exceso de solicitudes en poco tiempo. Se abre una
+     **barra de progreso que se queda visible** todo el proceso y termina
+     con un resumen fijo — "✅ Importación completada correctamente" o el
+     aviso de error si algo falló — que **no desaparece solo**, tienes
+     que pulsar "Cerrar" para quitarlo. Al terminar también descarga
+     automáticamente un **reporte en CSV** (`reporte_importacion_...csv`)
+     con el detalle completo: cada TAG, qué campo cambió, el valor
+     anterior y el nuevo, si fue automático o un conflicto (y cómo lo
+     resolviste), y si se guardó bien o falló — incluyendo los TAGs no
+     encontrados, duplicados u omitidos, y los TAGs nuevos que se
+     crearon.
 
   Tu Excel de importación necesita al menos la columna `TAG` y una o más
   de `PQT DW`, `PQT BW`, `GQE`, `ENTREGADO_DW`, `ENTREGADO_BW`, `OBS` con

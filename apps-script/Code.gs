@@ -89,7 +89,7 @@ function doGet(e) {
   }
 }
 
-/** POST: body JSON = { action: 'updateRow'|'appendRow'|'uploadFile'|'deleteFile', ... } */
+/** POST: body JSON = { action: 'updateRow'|'updateRows'|'appendRow'|'appendRows'|'uploadFile'|'deleteFile', ... } */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -98,8 +98,14 @@ function doPost(e) {
     if (body.action === 'updateRow') {
       return jsonOut_(updateRow_(body));
     }
+    if (body.action === 'updateRows') {
+      return jsonOut_(updateRows_(body));
+    }
     if (body.action === 'appendRow') {
       return jsonOut_(appendRow_(body));
+    }
+    if (body.action === 'appendRows') {
+      return jsonOut_(appendRows_(body));
     }
     if (body.action === 'uploadFile') {
       return jsonOut_(uploadFile_(body));
@@ -344,4 +350,82 @@ function appendRow_(body) {
 
   sheet.getRange(newRow, 1, 1, values.length).setValues([values]);
   return { ok: true, row: newRow, updatedAt: now };
+}
+
+/**
+ * Versión "por lote" de updateRow_: recibe MUCHAS actualizaciones en una
+ * sola petición (body.updates = [{r, pqtDW, pqtBW, gqe, obs, entregadoDW,
+ * entregadoBW}, ...]) y las aplica todas dentro de esta misma ejecución.
+ * Se usa desde "Importar Excel" para evitar mandar cientos de peticiones
+ * HTTP individuales (eso es lo que provocaba que Google empezara a
+ * rechazarlas por exceso de solicitudes en poco tiempo).
+ */
+function updateRows_(body) {
+  if (!body.updates || !Array.isArray(body.updates) || body.updates.length === 0) {
+    return { ok: false, error: 'No se recibieron filas para actualizar.' };
+  }
+  const sheet = getSheet_();
+  const now = new Date().toISOString();
+  const results = [];
+
+  body.updates.forEach(u => {
+    try {
+      if (!u.r) { results.push({ r: u.r, ok: false, error: 'Falta el número de fila.' }); return; }
+      if (u.pqtDW !== undefined) sheet.getRange(u.r, COLS.PQT_DW).setValue(u.pqtDW);
+      if (u.pqtBW !== undefined) sheet.getRange(u.r, COLS.PQT_BW).setValue(u.pqtBW);
+      if (u.gqe !== undefined) sheet.getRange(u.r, COLS.GQE).setValue(u.gqe);
+      if (u.obs !== undefined) sheet.getRange(u.r, COLS.OBS).setValue(u.obs);
+      if (u.entregadoDW !== undefined) sheet.getRange(u.r, COLS.ENTREGADO_DW).setValue(u.entregadoDW);
+      if (u.entregadoBW !== undefined) sheet.getRange(u.r, COLS.ENTREGADO_BW).setValue(u.entregadoBW);
+      sheet.getRange(u.r, COLS.EDITOR).setValue(u.editor || body.editor || '');
+      sheet.getRange(u.r, COLS.UPDATED_AT).setValue(now);
+      results.push({ r: u.r, ok: true });
+    } catch (err) {
+      results.push({ r: u.r, ok: false, error: String(err) });
+    }
+  });
+
+  return { ok: true, results: results, updatedAt: now };
+}
+
+/**
+ * Versión "por lote" de appendRow_: recibe MUCHAS filas nuevas en una sola
+ * petición (body.rows = [{tag, item, install, ...}, ...]) y las escribe
+ * todas juntas al final de la hoja con una sola operación, dentro de esta
+ * misma ejecución — mucho más rápido y sin el límite de peticiones que
+ * afecta a cientos de llamadas individuales.
+ */
+function appendRows_(body) {
+  if (!body.rows || !Array.isArray(body.rows) || body.rows.length === 0) {
+    return { ok: false, error: 'No se recibieron filas para crear.' };
+  }
+  const sheet = getSheet_();
+  const startRow = sheet.getLastRow() + 1;
+  const now = new Date().toISOString();
+
+  const matrix = body.rows.map(r => {
+    const values = new Array(16).fill('');
+    values[COLS.ITEM - 1] = r.item || '';
+    values[COLS.INSTALL - 1] = r.install || '';
+    values[COLS.DISCIPLINE - 1] = r.discipline || '';
+    values[COLS.SUBCONTRACTOR - 1] = r.subcontractor || '';
+    values[COLS.TAG - 1] = r.tag || '';
+    values[COLS.SYSTEM - 1] = r.system || '';
+    values[COLS.DESCRIPTION - 1] = r.description || '';
+    values[COLS.LEVEL - 1] = r.level || '';
+    values[COLS.PQT_DW - 1] = r.pqtDW || '';
+    values[COLS.PQT_BW - 1] = r.pqtBW || '';
+    values[COLS.GQE - 1] = r.gqe || '';
+    values[COLS.OBS - 1] = r.obs || '';
+    values[COLS.EDITOR - 1] = r.editor || body.editor || '';
+    values[COLS.UPDATED_AT - 1] = now;
+    values[COLS.ENTREGADO_DW - 1] = r.entregadoDW || '';
+    values[COLS.ENTREGADO_BW - 1] = r.entregadoBW || '';
+    return values;
+  });
+
+  sheet.getRange(startRow, 1, matrix.length, 16).setValues(matrix);
+
+  const created = body.rows.map((r, idx) => ({ tag: r.tag, item: r.item, row: startRow + idx }));
+  return { ok: true, count: matrix.length, created: created, updatedAt: now };
 }

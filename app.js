@@ -32,7 +32,7 @@ const STORAGE_KEY_ROLE = 'placas_role';
 const STORAGE_KEY_NAME = 'placas_user_name';
 const CACHE_KEY = 'placas_data_cache_v1';
 const PAGE_SIZE = 60;
-const APP_VERSION = 'v3.7.0';
+const APP_VERSION = 'v4.0.0';
 
 document.querySelectorAll('.footer-version').forEach(el => { el.textContent = APP_VERSION; });
 
@@ -242,12 +242,12 @@ function renderDashboard() {
 
 // Colores estables por paquete: mismo número siempre el mismo tono
 const CHIP_PALETTE = [
-  { bg: '#e8effe', fg: '#2563eb' }, // azul
-  { bg: '#e3f6f3', fg: '#0d9488' }, // teal
-  { bg: '#fff3e0', fg: '#c2670a' }, // ámbar
-  { bg: '#f0e9fd', fg: '#7c3aed' }, // púrpura
-  { bg: '#fdecec', fg: '#c22b2b' }, // rojo
-  { bg: '#e6f4ea', fg: '#1a7a3c' }  // verde
+  { bg: '#fbe3cc', fg: '#e2650e' }, // naranja (principal)
+  { bg: '#dce7ee', fg: '#2c5c7a' }, // acero
+  { bg: '#f2e6c8', fg: '#b8860b' }, // ámbar
+  { bg: '#e7e1ea', fg: '#6b5876' }, // ciruela
+  { bg: '#f3dbd6', fg: '#a9382c' }, // rojo señalética
+  { bg: '#e1ede1', fg: '#3f7a52' }  // verde señalética
 ];
 
 function chipColorFor(key) {
@@ -279,11 +279,11 @@ function renderChipGrid(elId, dict, field) {
   });
 }
 
-// Colores vivos por rango de avance (rojo → ámbar → teal)
+// Colores por rango de avance (rojo señalética → ámbar → verde señalética)
 function heatColor(pct) {
-  if (pct >= 66) return { solid: '#0d9488', tint: 'rgba(13,148,136,0.10)' };
-  if (pct >= 33) return { solid: '#d97706', tint: 'rgba(217,119,6,0.10)' };
-  return { solid: '#dc2626', tint: 'rgba(220,38,38,0.08)' };
+  if (pct >= 66) return { solid: '#3f7a52', tint: 'rgba(63,122,82,0.10)' };
+  if (pct >= 33) return { solid: '#b8860b', tint: 'rgba(184,134,11,0.10)' };
+  return { solid: '#a9382c', tint: 'rgba(169,56,44,0.08)' };
 }
 
 function renderHeatList(elId, totals, done) {
@@ -442,6 +442,26 @@ function setQuickPackageFilter(type) {
 document.querySelectorAll('.pkg-quick-btn').forEach(btn => {
   btn.addEventListener('click', () => setQuickPackageFilter(btn.dataset.type));
 });
+
+// Menú "Herramientas": agrupa las acciones de administrador (Importar
+// Excel, exportar CSV/Excel, Vale de Entrega, Drive) en un solo botón para
+// no amontonar la barra de filtros.
+const toolsToggleBtn = document.getElementById('toolsToggleBtn');
+const toolsPanel = document.getElementById('toolsPanel');
+if (toolsToggleBtn) {
+  toolsToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toolsPanel.classList.toggle('hidden');
+  });
+  document.addEventListener('click', (e) => {
+    if (!toolsPanel.classList.contains('hidden') && !toolsPanel.contains(e.target) && e.target !== toolsToggleBtn) {
+      toolsPanel.classList.add('hidden');
+    }
+  });
+  toolsPanel.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => toolsPanel.classList.add('hidden'));
+  });
+}
 
 function fillSelect(id, values, placeholder) {
   const sel = document.getElementById(id);
@@ -1045,8 +1065,23 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   // borra solo a los pocos segundos.
   document.getElementById('importStepReview').classList.add('hidden');
   document.getElementById('importStepProgress').classList.remove('hidden');
-  const totalSteps = entries.length + importAnalysis.toCreate.length;
-  let doneSteps = 0;
+
+  // Mandamos los cambios en LOTES (no uno por fila): así, aunque haya
+  // cientos de TAGs, la app hace solo un puñado de peticiones a tu Sheet
+  // en vez de cientos — eso es justo lo que antes hacía que Google
+  // empezara a rechazar peticiones por exceso de solicitudes en poco
+  // tiempo.
+  const CHUNK_SIZE = 150;
+  function chunk(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  const updateChunks = chunk(entries, CHUNK_SIZE);
+  const createChunks = chunk(importAnalysis.toCreate, CHUNK_SIZE);
+  const totalChunks = updateChunks.length + createChunks.length;
+  let doneChunks = 0;
   const progressFill = document.getElementById('importProgressFill');
   const progressPct = document.getElementById('importProgressPct');
   const progressLabel = document.getElementById('importProgressLabel');
@@ -1054,38 +1089,44 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
   const closeBtn = document.getElementById('importCloseProgressBtn');
 
   function tickProgress(label) {
-    doneSteps++;
-    const pct = totalSteps ? Math.round((doneSteps / totalSteps) * 100) : 100;
+    doneChunks++;
+    const pct = totalChunks ? Math.round((doneChunks / totalChunks) * 100) : 100;
     progressFill.style.width = pct + '%';
     progressPct.textContent = pct + '%';
     progressLabel.textContent = label;
   }
 
-  progressLabel.textContent = `Aplicando cambios (0 de ${totalSteps})…`;
+  progressLabel.textContent = `Aplicando cambios (0 de ${totalChunks} lote(s))…`;
 
   let okCount = 0, errCount = 0;
   const rowResult = new Map();
-  for (const entry of entries) {
+  for (const batch of updateChunks) {
     try {
-      const payload = Object.assign({ action: 'updateRow', r: entry.row.r, editor: state.userName }, entry.fields);
-      const result = await apiPost(payload);
+      const updates = batch.map(entry => Object.assign({ r: entry.row.r }, entry.fields));
+      const result = await apiPost({ action: 'updateRows', updates, editor: state.userName });
       if (result.ok) {
-        Object.keys(entry.fields).forEach(apiKey => {
-          const map = IMPORT_FIELD_MAP.find(f => f.apiKey === apiKey);
-          if (map) entry.row[map.field] = entry.fields[apiKey];
-        });
-        okCount++;
-        rowResult.set(entry.row.r, { ok: true });
+        (result.results || []).forEach(res => rowResult.set(res.r, res));
       } else {
-        errCount++;
-        rowResult.set(entry.row.r, { ok: false, error: result.error || 'Error desconocido' });
+        batch.forEach(entry => rowResult.set(entry.row.r, { ok: false, error: result.error || 'Error desconocido' }));
       }
     } catch (e) {
-      errCount++;
-      rowResult.set(entry.row.r, { ok: false, error: e.message });
+      batch.forEach(entry => rowResult.set(entry.row.r, { ok: false, error: e.message }));
     }
-    tickProgress(`Actualizando TAGs existentes (${doneSteps} de ${totalSteps})…`);
+    tickProgress(`Actualizando TAGs existentes (lote ${doneChunks + 1 <= totalChunks ? doneChunks + 1 : totalChunks} de ${totalChunks})…`);
   }
+
+  entries.forEach(entry => {
+    const res = rowResult.get(entry.row.r);
+    if (res && res.ok) {
+      Object.keys(entry.fields).forEach(apiKey => {
+        const map = IMPORT_FIELD_MAP.find(f => f.apiKey === apiKey);
+        if (map) entry.row[map.field] = entry.fields[apiKey];
+      });
+      okCount++;
+    } else {
+      errCount++;
+    }
+  });
 
   reportRows.forEach(rr => {
     if (rr.resultado) return; // ya quedó definido (ej. "Sin cambios")
@@ -1094,39 +1135,45 @@ document.getElementById('importApplyBtn').addEventListener('click', async () => 
     rr.detalle = res && !res.ok ? res.error : '';
   });
 
-  // Crear los TAGs nuevos (se agregan al final de la Sheet, uno por uno).
+  // Crear los TAGs nuevos, también en lotes (se agregan al final de la Sheet).
   let createdCount = 0, createErrCount = 0;
-  for (const nr of importAnalysis.toCreate) {
+  for (const batch of createChunks) {
     try {
-      const payload = Object.assign({ action: 'appendRow', editor: state.userName }, nr);
-      const result = await apiPost(payload);
+      const result = await apiPost({ action: 'appendRows', rows: batch, editor: state.userName });
       if (result.ok) {
-        createdCount++;
-        state.rows.push({
-          r: result.row, i: nr.item, ins: nr.install, dis: nr.discipline, sub: nr.subcontractor,
-          tag: nr.tag, sys: nr.system, desc: nr.description, lvl: nr.level,
-          dw: nr.pqtDW, bw: nr.pqtBW, g: nr.gqe, edw: nr.entregadoDW, ebw: nr.entregadoBW, o: nr.obs,
-          ed: state.userName, up: result.updatedAt
-        });
-        reportRows.push({
-          tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
-          decision: 'Creado', resultado: 'OK', detalle: ''
+        createdCount += result.count;
+        (result.created || []).forEach((c, idx) => {
+          const nr = batch[idx];
+          state.rows.push({
+            r: c.row, i: nr.item, ins: nr.install, dis: nr.discipline, sub: nr.subcontractor,
+            tag: nr.tag, sys: nr.system, desc: nr.description, lvl: nr.level,
+            dw: nr.pqtDW, bw: nr.pqtBW, g: nr.gqe, edw: nr.entregadoDW, ebw: nr.entregadoBW, o: nr.obs,
+            ed: state.userName, up: result.updatedAt
+          });
+          reportRows.push({
+            tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
+            decision: 'Creado', resultado: 'OK', detalle: ''
+          });
         });
       } else {
-        createErrCount++;
-        reportRows.push({
-          tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
-          decision: 'Creado', resultado: 'Error', detalle: result.error || 'Error desconocido'
+        createErrCount += batch.length;
+        batch.forEach(nr => {
+          reportRows.push({
+            tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
+            decision: 'Creado', resultado: 'Error', detalle: result.error || 'Error desconocido'
+          });
         });
       }
     } catch (e) {
-      createErrCount++;
-      reportRows.push({
-        tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
-        decision: 'Creado', resultado: 'Error', detalle: e.message
+      createErrCount += batch.length;
+      batch.forEach(nr => {
+        reportRows.push({
+          tag: nr.tag, item: nr.item, campo: '(fila completa)', valorAnterior: '', valorExcel: 'TAG nuevo',
+          decision: 'Creado', resultado: 'Error', detalle: e.message
+        });
       });
     }
-    tickProgress(`Creando TAGs nuevos (${doneSteps} de ${totalSteps})…`);
+    tickProgress(`Creando TAGs nuevos (lote ${doneChunks + 1 <= totalChunks ? doneChunks + 1 : totalChunks} de ${totalChunks})…`);
   }
 
   importAnalysis.notFound.forEach(tag => {
